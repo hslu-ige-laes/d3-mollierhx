@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            h1 {
+                font-family: monospace;
+                font-weight: normal;
+                font-size: 50px;
+                margin-left: 10px;
+                color: black;
+            }
+            h2 {
+                font-family: monospace;
+                font-weight: normal;
+                font-size: 30px;
+                color: black;
+                margin-top: 0px;
+            }
+            p {
+                font-family: monospace;
+                font-size: 14px;
+                color: black;
+                margin-bottom: 0px;
+            }
+            .main_diagram {
+                width: 60%;
+                float: left;
+                text-align: center;
+            }
+            .control_central {
+                width: 40%;
+                float: right;
+            }
+            .text_below {
+                width: 100%;
+                clear: both;
+            }
+            .control_panel {
+                background-color: lightseagreen;
+                margin-bottom: 10px;
+                font-family: Helvetica;
+                text-align: center;
+            }
+            .mini_input {
+                background-color: rgb(121, 64, 146);
+                float: left;
+                margin-right: 10px;
+                margin-bottom: 0px;
+                padding: 10px;
+            }
+            .widget {
+                background-color: lightslategrey;
+                margin: 10px;
+                padding: 10px;
+            }
+            .text_block {
+                background-color: whitesmoke;
+            }
+            #pressure_input {
+                width: 55px;
+                text-align: right;
+            }
+            #files {
+                width: 120px;
+            }
+        </style>
+    </head>
+
+    <h1>Mollier-hx-diagram</h1>
+
+    <div>
+        <div class="main_diagram">
+            <div class="widget">
+                <div id="test"></div>
+            </div>
+        </div>
+
+        <div class="control_central">
+            <div class="widget">
+
+                <div class="control_panel">
+                    x-range: [g/kg]<div  id="rangeX"></div>
+                </div>
+                <div class="control_panel">
+                    y-range: [°C]<div  id="rangeY"></div>
+                </div>
+                <div class="control_panel">
+                    abs. humidity-range: [g/kg]<div  id="rangeXX"></div>
+                </div>
+                <div class="control_panel">
+                    rel. humidity-range: [-]<div  id="rangePhi"></div>
+                </div>
+                <div class="control_panel">
+                    temperature-range: [°C]<div  id="rangeT"></div>
+                </div>
+                
+                <div style="display: flex;">
+                    <div class="control_panel mini_input">
+                        Pressure = <input type="text" id="pressure_input" onchange="handle_p()"></input> Pa
+                    </div>
+                    <div class="control_panel mini_input" id="fileinput">
+                        <input type="file" id="files" name="file"></input>
+                        <p id="loading_state"></p>
+                    </div> 
+                </div>
+
+            </div>
+
+            <div class="widget">
+                <div class="text_block">
+                    <h2>Control-panel</h2>
+                    <p>
+                        In the control-panel, the domain of the lefthand diagram can be specified with the sliders "x-range" and "y-range". The other three sliders can be used to 
+                        adjust the comfort-zone (shown in semi-transparent blue on the diagram). In order to plot your data, use the file-input element on the bottom and choose a 
+                        .csv-file from your computer. It should contain three columns: time (isoparse format), humidity, temperature. The input field for pressure lets you change 
+                        the coordinate-lines of the diagram in order to fit the indicated pressure.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v5.min.js"></script> 
+    <script src="../src/mollierFunctions.js"></script>
+    <script src="../src/coordinateGenerator.js"></script>
+    <script src="../src/rangeSlider.js"></script>
+	<script src="../src/csvReader.js"></script>
+	<script src="../src/drawComfort.js"></script>
+    <script src="../d3.chart.mollierhx.js"></script>
+
+</html>
