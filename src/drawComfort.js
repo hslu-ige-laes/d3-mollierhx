@@ -1,5 +1,5 @@
-// function that draws a confort-zone polygon to a container with defined width and height
-function drawConfort(containerId,Width,Height,margin,domainX,domainY,rangeT,rangePhi,rangeX,p) {
+// Function that draws a comfort-zone polygon to a container with defined width and height
+function drawComfort(containerId,Width,Height,margin,domainX,domainY,rangeT,rangePhi,rangeX,p) {
 
 	// handle margin
     let environment = d3.select(containerId).append("svg")
@@ -19,12 +19,12 @@ function drawConfort(containerId,Width,Height,margin,domainX,domainY,rangeT,rang
 	let x = d3.scaleLinear().range([0,width]).domain(domainX);
 	let y = d3.scaleLinear().range([height,0]).domain(domainY);
 
-	// Line-constructor for the confort-path
+	// Line-constructor for the comfort-path
 	let line = d3.line()
 					.x(function(d) { return x(d.x); })
 					.y(function(d) { return y(d.y); });
 
-	let pathos = createConfort(rangeT,rangePhi,rangeX,p);
+	let pathos = createcomfort(rangeT,rangePhi,rangeX,p);
 	plot.selectAll("path")
 				.data([pathos])
 				.enter()
@@ -37,10 +37,10 @@ function drawConfort(containerId,Width,Height,margin,domainX,domainY,rangeT,rang
 
 // Function that returns an array of {x,y}-objects, that describe points on a hx-diagram with 
 // kg/kg as unit for 'x' and °C as unit for 'y'. This array can then be rendered as an svg-path
-// that describes the confortzone that is defined with the three confort-ranges: rangeT,
+// that describes the comfortzone that is defined with the three comfort-ranges: rangeT,
 // rangePhi and rangeX.
 
-function createConfort(rangeT,rangePhi,rangeX,p) { 
+function createcomfort(rangeT,rangePhi,rangeX,p) { 
 	rangeT = sortRange(rangeT); // safety measurements
 	rangePhi = sortRange(rangePhi);
 	rangeX = sortRange(rangeX);

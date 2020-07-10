@@ -1,4 +1,4 @@
-// Functions for the Coordinate-transformations in the Mollier hx-diagram
+// Functions for the coordinate-transformations in the Mollier hx-diagram
 
 // x has the unit kg/kg and y the unit °C.
 

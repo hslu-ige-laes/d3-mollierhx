@@ -1,12 +1,11 @@
-// the Function 'drawHXCoordinates' draws the coordinate-lines of temperature,
-// density, enthalpy and relative humidity into an SVG-element, that will be
-// - with the id "hx_mollier_diagram" - attached to the DOM-element of that 
-// has the id 'containerId'. In order to fit in the plot you want to draw, the
+// The function 'drawHXCoordinates' draws the coordinate-lines of temperature,
+// density, enthalpy and relative humidity into an SVG-element
+// In order to fit in the plot you want to draw, the
 // width and height as well as the domain of x- and y-values have to be ind-
-// dicated ('domainX' resp. 'domainY'). The parameter 'p' describes the pressure 
-// of the fluid. Changes of 'p' affect the geometry of the coordinate-lines.
+// dicated ('domainX' resp. 'domainY'). The parameter 'p' describes the pressure. 
+// Changes of 'p' affect the geometry of the coordinate-lines.
 
-// The unit of the input parameters are as follows:
+// The units of the input parameters are as follows:
 // [domainX] = kg/kg
 // [domainY] = °C
 // [p] = Pa = N/m^2
