@@ -5,15 +5,12 @@
 ## Overview
 The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to describe changes of state of humid air. In the present case it is used to show comfort states regarding temperature and humidity.
 
-It is valid for a certain air pressure. The quantities temperature, humidity (absolute and relative), enthalpy and density can be read off directly.
-
-The basic scale for the h,x-diagram is a temperature scale, which is applied vertically as y-axis. The auxiliary lines drawn horizontally from left to right are the "isotherms", i.e. lines with constant air temperature. While the isotherm at 0 °C runs parallel to the horizontal axis, the isotherms at higher temperatures will increasingly rise to the right, due to the heat content of the increasing water content.
-
-The x-axis represents the water content x or the absolute humidity of the air.
-
-The comfort zone helps to indicate whether measured temperature/humidity values are within a predefined comfort zone or not.
-
-Measured values get integrated as scatter plot and are coloured according to the season (winter, spring, summer, fall).
+- It is valid for a certain air pressure. The quantities temperature, humidity (absolute and relative), enthalpy and density can be read off directly.
+- The basic scale for the h,x-diagram is a temperature scale, which is applied vertically as y-axis.
+- The auxiliary lines drawn horizontally from left to right are the "isotherms", i.e. lines with constant air temperature. While the isotherm at 0 °C runs parallel to the horizontal axis, the isotherms at higher temperatures will increasingly rise to the right, due to the heat content of the increasing water content.
+- The x-axis represents the water content x resp. the absolute humidity of the air.
+- The comfort zone helps to indicate whether measured temperature/humidity values are within a comfortable range or not.
+- Measured values get integrated as scatter plot and are coloured according to the season (winter, spring, summer, fall).
 
 <img alt="mollier hx diagram" src="img/mollierhx.gif" width="100%">
 
