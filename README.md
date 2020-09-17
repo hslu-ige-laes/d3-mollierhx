@@ -1,6 +1,14 @@
 # d3-mollierhx
 > Mollier hx diagram built on d3.js
 
+<hr>
+
+**Disclaimer**<br>
+The authors decline any liability or responsibility in connection with the published code.
+
+&copy; Lucerne University of Sciences and Arts, 2020
+
+<hr>
 
 ## Overview
 The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to describe changes of state of humid air. In the present case it is used to show comfort states regarding temperature and humidity.
@@ -13,6 +21,8 @@ The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to de
 - The x-axis represents the water content x resp. the absolute humidity of the air.
 - The comfort zone helps to indicate whether measured temperature/humidity values are within a comfortable range or not.
 - Measured values get integrated as scatter plot and are coloured according to the season (winter, spring, summer, fall).
+
+<hr>
 
 ## Details
 The D3 functions are structured in a way that the diagram can easily get integrated in own applications. Therefore csv file upload, comfort zone and data plotter are separated.
