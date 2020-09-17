@@ -1,7 +1,5 @@
 # d3-mollierhx
-> Mollier hx diagram built on d3.js
-
-<hr>
+- Mollier hx diagram built on d3.js
 
 **Disclaimer**<br>
 The authors decline any liability or responsibility in connection with the published code.
@@ -21,6 +19,11 @@ The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to de
 - The x-axis represents the water content x resp. the absolute humidity of the air.
 - The comfort zone helps to indicate whether measured temperature/humidity values are within a comfortable range or not.
 - Measured values get integrated as scatter plot and are coloured according to the season (winter, spring, summer, fall).
+
+<hr>
+
+## R Shiny implementation
+See [https://hslu-ige-laes.github.io/lcm/docs/modules/roomTempHum](https://hslu-ige-laes.github.io/lcm/docs/modules/roomTempHum)
 
 <hr>
 
