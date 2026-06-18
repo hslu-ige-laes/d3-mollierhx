@@ -1,15 +1,17 @@
-// Function that draws a comfort-zone polygon to a container with defined width and height
-function drawComfort(containerId,Width,Height,margin,domainX,domainY,rangeT,rangePhi,rangeX,p) {
+// function that draws a Comfort-zone polygon to a container with defined width and height
+function drawComfort(container,Width,Height,margin,domainX,domainY,rangeT,rangePhi,rangeX,p,mollier) {
+
+	if (!mollier) mollier = createMollier();
 
 	// handle margin
-    let environment = d3.select(containerId).append("svg")
+    let environment = container.append("svg")
                     .attr("width",Width)
                     .attr("height",Height)
                     .attr("id","hx_mollier_diagram");
 
     let width = Width - margin.left - margin.right;
 	let height = Height - margin.top - margin.bottom;
-	
+
 	let plot = environment.append("g")
 					.attr("transform","translate("+margin.left+","+margin.top+")")
 					.append("svg")
@@ -19,28 +21,33 @@ function drawComfort(containerId,Width,Height,margin,domainX,domainY,rangeT,rang
 	let x = d3.scaleLinear().range([0,width]).domain(domainX);
 	let y = d3.scaleLinear().range([height,0]).domain(domainY);
 
-	// Line-constructor for the comfort-path
+	// Line-constructor for the Comfort-path
 	let line = d3.line()
 					.x(function(d) { return x(d.x); })
 					.y(function(d) { return y(d.y); });
 
-	let pathos = createcomfort(rangeT,rangePhi,rangeX,p);
+	let pathos = createComfort(rangeT,rangePhi,rangeX,p,mollier);
 	plot.selectAll("path")
 				.data([pathos])
 				.enter()
 					.append("path")
 					.attr("d",line)
-					.attr("fill","blue")
-					.attr("fill-opacity",0.2)
-					.attr("stroke","black");
+					.attr("fill","yellowgreen")
+					.attr("fill-opacity",0.4)
+					.attr("stroke","yellowgreen");
 }
 
 // Function that returns an array of {x,y}-objects, that describe points on a hx-diagram with 
 // kg/kg as unit for 'x' and °C as unit for 'y'. This array can then be rendered as an svg-path
-// that describes the comfortzone that is defined with the three comfort-ranges: rangeT,
+// that describes the Comfortzone that is defined with the three Comfort-ranges: rangeT,
 // rangePhi and rangeX.
 
-function createcomfort(rangeT,rangePhi,rangeX,p) { 
+function createComfort(rangeT,rangePhi,rangeX,p,mollier) {
+	if (!mollier) mollier = createMollier();
+	const get_x_y = mollier.get_x_y;
+	const get_x_y_tx = mollier.get_x_y_tx;
+	const get_x_y_phix = mollier.get_x_y_phix;
+
 	rangeT = sortRange(rangeT); // safety measurements
 	rangePhi = sortRange(rangePhi);
 	rangeX = sortRange(rangeX);

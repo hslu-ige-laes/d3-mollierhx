@@ -83,8 +83,9 @@ function createRangeSlider(Width,Height,container_id) {
 	let backgroundrect = canvas.append("rect")
 			.attr("width",width_)
 			.attr("height",height_)
-			.attr("fill","white")
-			.attr("stroke","black")
+			.attr("rx",4)
+			.attr("fill","#f1f5f9")
+			.attr("stroke","#cbd5e1")
 			.attr("stroke-width",1)
 			.attr("shape-rendering","optimizeSpeed");
 		

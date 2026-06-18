@@ -3,8 +3,13 @@ let dataXY = [];       // calculated data-positions on the diagram
 
 let p = 101325;
 document.getElementById("pressure_input").value = p;
+document.getElementById("altitude_input").value = 0;
 
-let Height = 700;
+// Mollier coordinate convention ('classical' default, or 'glueck').
+let convention = "classical";
+let mollier = createMollier(convention);
+
+let Height = 1000;
 
 let dimensioninfo = document.getElementById("test").getBoundingClientRect();
 // this svg is created in order to measure the right width of the #test-div
@@ -15,7 +20,7 @@ dimensioninfo = document.getElementById("test").getBoundingClientRect();
 placeholder.node().remove();
 
 let Width = dimensioninfo.width;
-let margin = {top: 30, right: 20, bottom: 30, left: 30};
+let margin = {top: 40, right: 70, bottom: 50, left: 60};
 
 let width = Width - margin.left - margin.right;
 let height = Height - margin.top - margin.bottom;
@@ -39,6 +44,8 @@ let plot = canvas.append("g")
                 .attr("clip-path","url(#clip)");
 
 let comfortZone = plot.append("g");
+let bandOrange = plot.append("g");   // dashed ±1 K / ±5 % warning band
+let bandRed = plot.append("g");      // dashed ±2.5 K / ±10 % warning band
 let gBrush = plot.append("g").attr("id","2dbrush"); // putting the brush before the circles -> pointer events on circles
 let circlesHandle = plot.append("g");
 
@@ -145,31 +152,73 @@ let rangeT =   [20,26];         sliderT.move(rangeT,true);  // update slider-val
 let rangePhi = [0.3,0.65];      sliderPhi.move([rangePhi[0]*100,rangePhi[1]*100],true);
 let rangeX =   [0,0.0115];      sliderXX.move([rangeX[0]*1000,rangeX[1]*1000],true);
 
-let pathos = createcomfort(rangeT,rangePhi,rangeX,p);
+let pathos = createComfort(rangeT,rangePhi,rangeX,p,mollier);
 comfortZone.selectAll("path")
             .data([pathos])
             .enter()
                 .append("path")
                 .attr("d",line)
-                .attr("fill","blue")
-                .attr("fill-opacity",0.2)
-                .attr("stroke","black");
+                .attr("fill","yellowgreen")
+                .attr("fill-opacity",0.4)
+                .attr("stroke","yellowgreen");
 
 function refresh_comfort() {
-    pathos = createcomfort(rangeT,rangePhi,rangeX,p);
+    pathos = createComfort(rangeT,rangePhi,rangeX,p,mollier);
     comfortZone.selectAll("path")
                 .data([pathos])
                     .attr("d",line);
+
+    // Two configurable, toggleable dashed warning bands around the comfort
+    // zone (orange / red). Each is ± its own ΔT [K] and Δφ [%] offsets.
+    refreshBand(bandOrange, "band1_on", "band1_dt", "band1_dphi", "band1_x",
+                "#E67E22", "leg_band1", "leg_band1_txt");
+    refreshBand(bandRed, "band2_on", "band2_dt", "band2_dphi", "band2_x",
+                "#C0392B", "leg_band2", "leg_band2_txt");
 
     //one could do this also with the function 'drawComfort':
     //drawComfort("#theplot",Width,Height,margin,domainX,domainY,rangeT,rangePhi,rangeX,p);
 }
 
+function refreshBand(group, onId, dtId, dphiId, xId, color, legId, legTxtId) {
+    let on = document.getElementById(onId);
+    let leg = document.getElementById(legId);
+    if(!on || !on.checked) {
+        group.selectAll("path").remove();
+        if(leg) leg.style.display = "none";
+        return;
+    }
+    let dt = Number(document.getElementById(dtId).value) || 0;
+    let dphi = (Number(document.getElementById(dphiId).value) || 0) / 100;
+    let xmax = Number(document.getElementById(xId).value);   // abs humidity [g/kg]
+    let rX = (xmax > 0) ? [0, xmax/1000] : [0, 0.030];
+    let cp = function(v) { return Math.max(0, Math.min(1, v)); };
+    drawBand(group, [rangeT[0]-dt, rangeT[1]+dt],
+             [cp(rangePhi[0]-dphi), cp(rangePhi[1]+dphi)], rX, color);
+    if(leg) leg.style.display = "";
+    let legTxt = document.getElementById(legTxtId);
+    if(legTxt) {
+        var txt = "± " + dt + " K / " + (dphi*100) + " %";
+        if(xmax > 0) txt += " / x≤ " + xmax + " g/kg";
+        legTxt.innerHTML = txt;
+    }
+}
+
+function drawBand(group, rT, rPhi, rX, color) {
+    let pb = createComfort(rT, rPhi, rX, p, mollier);
+    let sel = group.selectAll("path").data([pb]);
+    sel.enter().append("path").merge(sel)
+        .attr("d", line)
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1.8)
+        .attr("stroke-dasharray", "7,4");
+}
+
 // Draw the hx-diagram-background with the coordinate-lines
 draw_background();
 
-// Handle Resizing of window
-window.addEventListener('resize', function() { 
+// Recompute the layout (called on window-resize and on height changes).
+function relayout() {
 
     dimensioninfo = document.getElementById("test").getBoundingClientRect();
     // this svg is created in order to measure the right width of the #test-div
@@ -199,25 +248,86 @@ window.addEventListener('resize', function() {
     sliderXX.width(width_s);
 
     draw_background();
+}
 
-});
+window.addEventListener('resize', relayout);
+
+// Adjustable diagram height (px).
+function handle_height() {
+    let h = Number(document.getElementById("height_input").value);
+    if(h >= 300 && h <= 2000) { Height = h; relayout(); }
+}
+
+// Read the line-visibility checkboxes into an opts object for drawHXCoordinates.
+function getLineOpts() {
+    let chk = function(id) {
+        let el = document.getElementById(id);
+        return el ? el.checked : true;
+    };
+    return {
+        showTemperature: chk("show_t"),
+        showDensity:     chk("show_rho"),
+        showRelHumidity: chk("show_phi"),
+        showEnthalpy:    chk("show_h"),
+        showAbsHumidity: chk("show_x"),
+        xAxisTitle:      "absolute water content x [g/kg]"
+    };
+}
 
 function draw_background() {
     let mollier_diag = d3.select("#hx_mollier_diagram").node();
     if(!(mollier_diag == null)) mollier_diag.remove();
-    drawHXCoordinates("#theplot",Width,Height,margin,domainX,domainY,p);
+    drawHXCoordinates(d3.select("#theplot"),Width,Height,margin,domainX,domainY,p,mollier,getLineOpts());
+    drawAltitudePressure();
     drawCircles();
     refresh_comfort();
 }
 
+function handle_convention() {
+    convention = document.getElementById("convention_select").value;
+    mollier = createMollier(convention);
+    calcData();          // data positions depend on the convention
+    draw_background();
+}
+
+// Altitude (derived from pressure via the inverse ISA barometric formula) and
+// pressure in hPa, written in the top-right corner in dark grey.
+function drawAltitudePressure() {
+    let pa = Number(p);
+    let altitude = (1 - Math.pow(pa/101325, 1/5.25588)) / 2.25577e-5;
+    let info = d3.select("#hx_mollier_diagram").append("g")
+        .style("font-family", "Tahoma, Geneva, sans-serif");
+    info.append("text")
+        .attr("x", margin.left + width).attr("y", margin.top - 22)
+        .attr("text-anchor", "end").attr("fill", "#4d4d4d").attr("font-size", 12)
+        .text(altitude.toFixed(0) + " m a.s.l.");
+    info.append("text")
+        .attr("x", margin.left + width).attr("y", margin.top - 8)
+        .attr("text-anchor", "end").attr("fill", "#4d4d4d").attr("font-size", 12)
+        .text((pa/100).toFixed(0) + " hPa");
+}
+
 function handle_p() {
     p = document.getElementById("pressure_input").value;
+    // keep the altitude field in sync (inverse ISA barometric formula)
+    let h = (1 - Math.pow(Number(p)/101325, 1/5.25588)) / 2.25577e-5;
+    document.getElementById("altitude_input").value = Math.round(h);
+    calcData();
+    draw_background();
+}
+
+function handle_altitude() {
+    let h = Number(document.getElementById("altitude_input").value);
+    // ISA barometric formula: pressure [Pa] from altitude [m a.s.l.]
+    p = 101325 * Math.pow(1 - 2.25577e-5 * h, 5.25588);
+    document.getElementById("pressure_input").value = Math.round(p);
     calcData();
     draw_background();
 }
 
 // Data-related functions
 let radius = 5;
+let timeFormat = d3.utcFormat("%Y-%m-%d %H:%M");   // tooltip date/time format
 function HandleData() {
     calcData();
     
@@ -243,9 +353,14 @@ function calcData() {
     if(CurrentData.values != null) {
         dataXY = [];
         CurrentData.values.forEach(function(d) {
-            let newElement = get_x_y(d[2],d[1]/100,p);
+            if(d[0] == null) return;                  // unparseable timestamp
+            let newElement = mollier.get_x_y(d[2],d[1]/100,p);
+            // skip rows with missing humidity/temperature (NaN coordinates),
+            // otherwise they pile up in the top-left corner at (0,0).
+            if(!isFinite(newElement.x) || !isFinite(newElement.y)) return;
             newElement.z = d[0].getMonth()%12;
-            dataXY.push(newElement); 
+            newElement.time = d[0];               // keep timestamp for the tooltip
+            dataXY.push(newElement);
         });
         dataXY = shuffle(dataXY);
         let ColorMap = ["lightblue","lightgreen","orange","brown"];
@@ -277,31 +392,38 @@ function handlemouseover(d,i) {
     let rect = current.append("rect")
             .attr("fill","whitesmoke");
             
-    current.append("text").attr("class","textContent")
-            .attr("x",x(d.x)+20)
-            .attr("y",y(d.y)-20)
-            .attr("font-size",14)
-            .attr("font-family","helvetica")
-            .text("x: " + numFormat(d.x*1000) + " g/kg");
+    let X = d.x, Y = d.y;
+    let temp = mollier.temperature(X, Y);
+    let phi  = mollier.rel_humidity(X, Y, p);
+    let hh   = mollier.enthalpy(X, Y);
+    let t_dp = mollier.temperature_p_sat(phi * mollier.p_sat(temp));   // dew point
 
-    current.append("text").attr("class","textContent")
-            .attr("x",x(d.x)+20)
-            .attr("y",y(d.y)-6)
-            .attr("font-size",14)
-            .attr("font-family","helvetica")
-            .text("T: " + numFormat(temperature(d.x,d.y)) + " °C");
+    let lines = [
+        d.time ? timeFormat(d.time) : "",
+        "x:  " + numFormat(X*1000) + " g/kg",
+        "T:  " + numFormat(temp) + " °C",
+        "F:  " + numFormat(phi*100) + " %",
+        "h:  " + numFormat(hh) + " kJ/kg",
+        "Td: " + numFormat(t_dp) + " °C"
+    ];
 
-    current.append("text").attr("class","textContent")
-            .attr("x",x(d.x)+20)
-            .attr("y",y(d.y)+8)
-            .attr("font-size",14)
+    let lh = 16;
+    lines.forEach(function(txt, idx) {
+        current.append("text").attr("class","textContent")
+            .attr("x", x(X)+20)
+            .attr("y", y(Y) - 56 + idx*lh)
+            .attr("font-size", 13)
+            .attr("font-weight", idx === 0 ? "bold" : "normal")
             .attr("font-family","helvetica")
-            .text("F: " + numFormat(rel_humidity(d.x,d.y,p)*100) + " %");
-    
-    rect.attr("x",x(d.x)+18)
-        .attr("y",y(d.y)-32)
-        .attr("width",85)
-        .attr("height",42);
+            .text(txt);
+    });
+
+    rect.attr("x", x(X)+16)
+        .attr("y", y(Y) - 70)
+        .attr("rx", 4)
+        .attr("width", 152)
+        .attr("height", lines.length*lh + 14)
+        .attr("stroke", "#cbd5e1");
 }
 
 function handlemouseout(d,i) {

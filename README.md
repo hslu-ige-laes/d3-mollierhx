@@ -27,6 +27,15 @@ See [https://hslu-ige-laes.github.io/lcm/docs/modules/roomTempHum](https://hslu-
 
 <hr>
 
+## Python implementation
+A Python port of this diagram (bundling these D3 sources) is available in the
+**pyedautils** package: [https://github.com/retomarek/pyedautils](https://github.com/retomarek/pyedautils)
+(`pip install pyedautils`). It renders the diagram from a pandas DataFrame via
+`pyedautils.plots.plot_mollier_hx`, and adds comfort-zone overlays, warning
+bands, season-coloured scatter and altitude/pressure annotation.
+
+<hr>
+
 ## Details
 The D3 functions are structured in a way that the diagram can easily get integrated in own applications. Therefore csv file upload, comfort zone and data plotter are separated.
 
