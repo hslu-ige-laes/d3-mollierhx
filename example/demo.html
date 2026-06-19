@@ -313,6 +313,9 @@
 
             <div class="card slider-group">
                 <div class="title">Comfort zone</div>
+                <div class="checks" style="margin-bottom:10px;">
+                    <label><input type="checkbox" id="show_comfort" checked autocomplete="off" onchange="refresh_comfort()"> show comfort zone</label>
+                </div>
                 <div class="row">
                     <label>temperature <span class="unit">[°C]</span></label>
                     <div id="rangeT"></div>
@@ -366,6 +369,22 @@
                 <p id="loading_state"></p>
             </div>
 
+            <div class="card">
+                <div class="title">Data display</div>
+                <div class="checks">
+                    <label><input type="checkbox" id="show_points" checked autocomplete="off" onchange="draw_background()"> points</label>
+                    <label><input type="checkbox" id="show_freq" onchange="draw_background()"> frequency lines</label>
+                    <label style="padding-left:18px"><input type="checkbox" id="show_freq_days" autocomplete="off" onchange="draw_background()"> &mdash; count days instead of hours</label>
+                    <label style="padding-left:18px">&mdash; line rounding
+                        <input type="range" id="freq_smooth" min="0.6" max="9.0" step="0.1" value="4.0" autocomplete="off"
+                               style="vertical-align:middle;width:110px"
+                               oninput="document.getElementById('freq_smooth_val').textContent=(+this.value).toFixed(1);drawFreqLines()">
+                        <span id="freq_smooth_val">4.0</span></label>
+                    <label><input type="checkbox" id="show_hm" onchange="draw_background()"> <span style="color:#f97316">mean enthalpy h<sub>m</sub></span></label>
+                    <label><input type="checkbox" id="show_tm" onchange="draw_background()"> <span style="color:#2563eb">mean temperature t<sub>m</sub></span></label>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -375,8 +394,9 @@
             comfort zone (shown as the green polygon, with dashed orange/red tolerance bands). Switch the coordinate
             convention between <code>classical</code> and <code>Glück</code>. Enter either an altitude or a pressure —
             the other follows automatically (the value is shown top-right of the chart). To plot your own data, upload
-            a <code>.csv</code> with three columns: time (ISO 8601), humidity [%], temperature [°C]. Points are coloured
-            by season.
+            a <code>.csv</code> with three columns: time (ISO 8601), humidity [%], temperature [°C]. Meteonorm hourly
+            <code>.dat</code> files (year, month, day, hour, temperature, rel. humidity) are recognised automatically.
+            Points are coloured by season.
         </p>
     </div>
 
