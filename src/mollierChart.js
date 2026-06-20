@@ -120,6 +120,7 @@ const DEFAULT_SEASON_COLORS = ["#74add1", "#a6d96a", "#f46d43", "#a6611a"]; // w
 const DEFAULT_SEASON_LABELS = ["Winter", "Spring", "Summer", "Fall"];
 
 function toDate(v) {
+  if (v == null) return null;
   if (v instanceof Date) return v;
   if (typeof v === "number") return new Date(v);
   let d = new Date(v);
