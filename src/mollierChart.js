@@ -153,6 +153,7 @@ class MollierChart {
     // overlay state
     this._data = [];          // computed point records {x,y,season,time,...}
     this._showPoints = opts.showPoints !== false;   // default true
+    this._mean = { h: false, t: false };   // mean-enthalpy / mean-temperature curves
     this._comfort = null;     // {t,phi,x}
     this._orange = null;
     this._red = null;
@@ -203,6 +204,7 @@ class MollierChart {
     this.bandRedLayer = this.plot.append("g").attr("class", "hx-band-red");
     this.freqLines = this.plot.append("g").attr("class", "hx-freq");
     this.scatterLayer = this.plot.append("g").attr("class", "hx-scatter");
+    this.meanLayer = this.plot.append("g").attr("class", "hx-mean");
     this.chainLayer = this.plot.append("g").attr("class", "hx-chain");
     this.freqHover = this.plot.append("g").attr("class", "hx-freq-hover");
     this.freqLabels = this.plot.append("g").attr("class", "hx-freq-labels").style("pointer-events", "none");
@@ -286,6 +288,7 @@ class MollierChart {
     this._recomputeData();
     this._drawScatter();
     this._drawFreqLines();
+    this._drawMeanLines();
     return this;
   }
 
@@ -295,6 +298,61 @@ class MollierChart {
     this._showPoints = !!v;
     this.scatterLayer.style("display", this._showPoints ? null : "none");
     return this;
+  }
+
+  // Mean-value trajectories over the point cloud, like the classic diagram:
+  //   h_m = mean enthalpy per temperature bin   (orange, label hm)
+  //   t_m = mean temperature per enthalpy bin    (blue,   label tm)
+  setMeanLines(opts) {
+    this._mean = Object.assign({ h: false, t: false }, opts || {});
+    this._drawMeanLines();
+    return this;
+  }
+
+  _drawMeanLines() {
+    let self = this, x = this.x, y = this.y;
+    this.meanLayer.selectAll("*").remove();
+    if (this._data.length === 0 || (!this._mean.h && !this._mean.t)) return;
+
+    // Bin points by rounded keyFn and return the mean (x,y) per bin, ordered.
+    function meanCurve(keyFn) {
+      let bins = {};
+      self._data.forEach(function (d) {
+        let k = Math.round(keyFn(d));
+        if (!bins[k]) bins[k] = { sx: 0, sy: 0, n: 0, k: k };
+        bins[k].sx += d.x; bins[k].sy += d.y; bins[k].n += 1;
+      });
+      return Object.keys(bins).map((kk) => bins[kk])
+        .filter((b) => b.n >= 1).sort((a, b) => a.k - b.k)
+        .map((b) => ({ x: b.sx / b.n, y: b.sy / b.n }));
+    }
+    function smooth(pts, w) {
+      if (pts.length < 3) return pts;
+      let h = Math.floor(w / 2), out = [];
+      for (let i = 0; i < pts.length; i++) {
+        let sx = 0, sy = 0, n = 0;
+        for (let j = i - h; j <= i + h; j++) { if (j < 0 || j >= pts.length) continue; sx += pts[j].x; sy += pts[j].y; n++; }
+        out.push({ x: sx / n, y: sy / n });
+      }
+      return out;
+    }
+    let lineGen = d3.line().x((d) => x(d.x)).y((d) => y(d.y)).curve(d3.curveCatmullRom);
+    function drawCurve(pts, color, mainChar, dyLabel) {
+      if (pts.length < 2) return;
+      self.meanLayer.append("path").datum(pts).attr("d", lineGen)
+        .attr("fill", "none").attr("stroke", color).attr("stroke-width", 2.5);
+      let last = pts[pts.length - 1];
+      let txt = self.meanLayer.append("text")
+        .attr("x", x(last.x) + 7).attr("y", y(last.y) + dyLabel)
+        .attr("font-family", "helvetica").attr("font-size", 15).attr("font-style", "italic")
+        .attr("fill", color).attr("stroke", "white").attr("stroke-width", 3).attr("paint-order", "stroke");
+      txt.append("tspan").text(mainChar);
+      txt.append("tspan").attr("baseline-shift", "sub").attr("font-size", "10").text("m");
+    }
+    if (this._mean.h)
+      drawCurve(smooth(meanCurve((d) => this.mollier.temperature(d.x, d.y)), 5), "#f97316", "h", -4);
+    if (this._mean.t)
+      drawCurve(smooth(meanCurve((d) => this.mollier.enthalpy(d.x, d.y)), 5), "#2563eb", "t", 14);
   }
 
   _recomputeData() {
@@ -510,6 +568,7 @@ class MollierChart {
     this._drawBands();
     this._drawChain();
     this._drawFreqLines();
+    this._drawMeanLines();
   }
   _redrawAllOverlays() {
     this._drawScatter();
@@ -517,6 +576,7 @@ class MollierChart {
     this._drawBands();
     this._drawChain();
     this._drawFreqLines();
+    this._drawMeanLines();
   }
 
   // --- SVG tooltip (embed-safe; no HTML div) ------------------------------
