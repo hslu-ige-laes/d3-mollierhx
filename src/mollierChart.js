@@ -152,6 +152,7 @@ class MollierChart {
 
     // overlay state
     this._data = [];          // computed point records {x,y,season,time,...}
+    this._showPoints = opts.showPoints !== false;   // default true
     this._comfort = null;     // {t,phi,x}
     this._orange = null;
     this._red = null;
@@ -288,6 +289,14 @@ class MollierChart {
     return this;
   }
 
+  // Show/hide the measurement points without touching the frequency contours,
+  // so one can keep just the contour lines.
+  setShowPoints(v) {
+    this._showPoints = !!v;
+    this.scatterLayer.style("display", this._showPoints ? null : "none");
+    return this;
+  }
+
   _recomputeData() {
     let out = [];
     (this._rawData || []).forEach((d) => {
@@ -307,6 +316,7 @@ class MollierChart {
 
   _drawScatter() {
     let self = this, x = this.x, y = this.y;
+    this.scatterLayer.style("display", this._showPoints ? null : "none");
     let sel = this.scatterLayer.selectAll("circle").data(this._data);
     sel.exit().remove();
     sel.enter().append("circle")
