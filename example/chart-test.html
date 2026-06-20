@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MollierChart test</title>
+  <style>
+    body { font-family: monospace; margin: 16px; }
+    #chart { width: 900px; }
+    #log { white-space: pre; background: #f5f5f5; padding: 8px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div id="chart"></div>
+  <div id="log"></div>
+
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="../src/mollierFunctions.js"></script>
+  <script src="../src/coordinateGenerator.js"></script>
+  <script src="../src/drawComfort.js"></script>
+  <script src="../src/mollierChart.js"></script>
+  <script>
+    function log(m) { document.getElementById("log").textContent += m + "\n"; }
+
+    // ~2000 synthetic hourly records over a year: seasonal temperature + noise.
+    function makeData(n) {
+      var out = [], start = new Date(Date.UTC(2024, 0, 1)).getTime();
+      for (var i = 0; i < n; i++) {
+        var time = new Date(start + i * 3600000);
+        var doy = (i / n) * 2 * Math.PI;
+        var tBase = 12 + 11 * Math.sin(doy - 1.7);           // ~ -10..30 over the year
+        var t = tBase + 6 * (Math.random() - 0.5) + 4 * Math.sin(i / 6);
+        var rh = 60 + 25 * Math.sin(doy + 1) + 20 * (Math.random() - 0.5);
+        rh = Math.max(15, Math.min(99, rh));
+        out.push({ t: Math.round(t * 10) / 10, rh: Math.round(rh), time: time });
+      }
+      return out;
+    }
+
+    function ms(fn) { var t0 = performance.now(); fn(); return (performance.now() - t0); }
+
+    window.__results = {};
+    try {
+      var data = makeData(2000);
+      var chart;
+      window.__results.construct = ms(function () {
+        chart = new MollierChart("#chart", { height: 640, domainX: [0, 0.02], domainY: [-15, 38] });
+      });
+      window.__results.setData = ms(function () { chart.setData(data); });
+      window.__results.setComfort = ms(function () { chart.setComfort({ t: [20, 26], phi: [0.3, 0.65], x: [0, 0.0115] }); });
+      window.__results.setBands = ms(function () {
+        chart.setBands({ t: [18, 28], phi: [0.25, 0.75], x: [0, 0.012], color: "#E67E22" },
+                       { t: [16, 30], phi: [0.20, 0.85], x: [0, 0.0125], color: "#C0392B" });
+      });
+      window.__results.setFreq = ms(function () { chart.setFrequency({ show: true, days: false, smoothing: 4 }); });
+      window.__results.setChain = ms(function () {
+        chart.setProcessChain([
+          { x: 0.004, y: 5, number: "1", label: "Inlet", t: 5, phi: 60, xg: 4.0, h: 15 },
+          { x: 0.004, y: 22, number: "2", label: "Heat", t: 22, phi: 24, xg: 4.0, h: 32 }
+        ]);
+      });
+      // The frequent interactions (must be FAST — no grid redraw):
+      window.__results.comfortAgain = ms(function () { chart.setComfort({ t: [21, 25], phi: [0.35, 0.60], x: [0, 0.011] }); });
+      window.__results.freqSmooth = ms(function () { chart.setFrequency({ show: true, days: false, smoothing: 7 }); });
+      // The rare interaction (grid redraw — allowed to be slower):
+      window.__results.setDomain = ms(function () { chart.setDomain([0, 0.025], [-10, 40]); });
+
+      window.__results.svgCount = document.querySelectorAll("svg").length;
+      window.__results.circles = document.querySelectorAll(".hx-scatter circle").length;
+      window.__results.freqPaths = document.querySelectorAll(".hx-freq path").length;
+      window.__results.ok = true;
+      Object.keys(window.__results).forEach(function (k) { log(k + ": " + JSON.stringify(window.__results[k])); });
+    } catch (e) {
+      window.__results.error = String(e && e.stack || e);
+      log("ERROR: " + window.__results.error);
+    }
+  </script>
+</body>
+</html>
