@@ -278,6 +278,7 @@ class MollierChart {
     this.x.range([0, this.width]); this.y.range([this.height, 0]);
     this._drawGrid();
     this._redrawAllOverlays();
+    if (this._clickCatcher) this._clickCatcher.attr("width", this.width).attr("height", this.height).raise();
     return this;
   }
 
@@ -297,6 +298,33 @@ class MollierChart {
   setShowPoints(v) {
     this._showPoints = !!v;
     this.scatterLayer.style("display", this._showPoints ? null : "none");
+    return this;
+  }
+
+  // Enable click-to-add: clicking the plot calls cb({t, rh, x}) with the
+  // temperature [°C], relative humidity [%] and absolute humidity [kg/kg] at the
+  // clicked position. Pass null to disable. A transparent catcher on top makes
+  // the whole plot area clickable (teaching/interactive use).
+  onPlotClick(cb) {
+    this._clickCb = cb || null;
+    if (!cb) {
+      if (this._clickCatcher) { this._clickCatcher.remove(); this._clickCatcher = null; }
+      return this;
+    }
+    let self = this;
+    if (!this._clickCatcher) {
+      this._clickCatcher = this.plot.append("rect").attr("class", "hx-clickcatch")
+        .attr("x", 0).attr("y", 0).attr("fill", "transparent").style("cursor", "crosshair");
+    }
+    this._clickCatcher.attr("width", this.width).attr("height", this.height).raise()
+      .on("click", function () {
+        let m = d3.mouse(this);
+        let xv = self.x.invert(m[0]), yv = self.y.invert(m[1]);
+        let T = self.mollier.temperature(xv, yv);
+        let rh = self.mollier.rel_humidity(xv, yv, self.pressure) * 100;
+        rh = Math.max(0, Math.min(100, rh));
+        if (self._clickCb) self._clickCb({ t: Math.round(T * 10) / 10, rh: Math.round(rh * 10) / 10, x: xv });
+      });
     return this;
   }
 
