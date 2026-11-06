@@ -16,6 +16,10 @@ function drawHXCoordinates(container,Width,Height,margin,domainX,domainY,p,molli
     // Resolve the Mollier suite for the chosen convention (default 'classical').
     if (!mollier) mollier = createMollier();
 
+    // Loop counters shared by the sections below. Declared so the file also
+    // runs in strict mode / as an ES module (they used to be implicit globals).
+    let i, dt;
+
     // Per-curve-family visibility. When a family is switched off, everything
     // belonging to it is suppressed: the iso-lines, their value labels and the
     // axis-edge caption text. Defaults: all on.
