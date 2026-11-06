@@ -2,6 +2,8 @@
   <img src="https://raw.githubusercontent.com/hslu-ige-laes/d3-mollierhx/master/docs/banner.png" alt="d3-mollierhx: Mollier h,x diagram (psychrometric chart) built on D3.js, with comfort zone and season-coloured measurements" width="100%">
 </p>
 
+<p align="center"><b><a href="https://hslu-ige-laes.github.io/d3-mollierhx/">Live demo and examples: hslu-ige-laes.github.io/d3-mollierhx</a></b></p>
+
 <p align="center">
   <a href="https://hslu-ige-laes.github.io/d3-mollierhx/"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-GitHub%20Pages-41BDF5?style=flat-square"></a>
   <a href="https://d3js.org/"><img alt="Built with D3.js v7" src="https://img.shields.io/badge/D3.js-v7-f9a03c?style=flat-square"></a>
@@ -12,18 +14,17 @@
 
 <p align="center">Mollier h,x diagram (psychrometric chart) for the browser, built on D3.js: iso-lines, comfort zone, tolerance bands and season-coloured measurements.</p>
 
-## Live demo
-**[hslu-ige-laes.github.io/d3-mollierhx](https://hslu-ige-laes.github.io/d3-mollierhx/)** –
-[interactive demo](https://hslu-ige-laes.github.io/d3-mollierhx/example/demo.html) with example data
-(Zürich-Kloten, hourly), comfort zone, warning bands, outside air and ventilation line, and the
-[MollierChart test page](https://hslu-ige-laes.github.io/d3-mollierhx/example/chart-test.html).
+<p align="center">
+  <img alt="Mollier h,x diagram from the demo: iso-lines, comfort zone and hourly measurements coloured by season" src="docs/screenshot.png" width="100%">
+</p>
 
-<hr>
+> **Used in [pyedautils](https://github.com/retomarek/pyedautils)**, the *Python Energy Data Analysis Utilities*: `plot_mollier_hx()` and `plot_mollier_hx_fast()` bundle these sources, so you can draw the same diagram from pandas DataFrames in Python or Jupyter (`pip install pyedautils`).
 
-## Overview
+> **In Home Assistant: [Mollier hx Card](https://github.com/retomarek/mollier-hx-card) and [Comfort Compass Card](https://github.com/retomarek/comfort-compass-card).** The same diagram as a dashboard card, with outside air and ventilation line, and the comfort compass with the same comfort zone and warning bands.
+
+## Why the h,x diagram
+
 The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to describe changes of state of humid air. In the present case it is used to show comfort states regarding temperature and humidity.
-
-<img alt="mollier hx diagram" src="docs/screenshot.png" width="100%">
 
 - It is valid for a certain air pressure. The quantities temperature, humidity (absolute and relative), enthalpy and density can be read off directly.
 - The basic scale for the h,x-diagram is a temperature scale, which is applied vertically as y-axis.
@@ -32,30 +33,53 @@ The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to de
 - The comfort zone helps to indicate whether measured temperature/humidity values are within a comfortable range or not.
 - Measured values get integrated as scatter plot and are coloured according to the season (winter, spring, summer, fall).
 
-<hr>
+## Features
 
-## Usage
-The D3 functions are structured in a way that the diagram can easily get integrated in own applications. Therefore csv file upload, comfort zone and data plotter are separated.
+- **Complete h,x diagram** for any air pressure: iso-lines of temperature, relative and absolute humidity, density and enthalpy, each family on or off, in the `classical` (per kg dry air) or `glueck` (per kg moist air) convention.
+- **Comfort zone** as a polygon from temperature, relative and absolute humidity limits, plus orange and red **warning bands** around it.
+- **Measurements** as a scatter plot coloured by season, with tooltips (x, T, φ, h, Td).
+- **Outside air and ventilation**: the outside point, a dashed ventilation line to the room point and a note whether airing dries the room or adds moisture.
+- **Edge arrows** with their value for room and outside points outside the axes.
+- **Fast, incremental updates** with `MollierChart`: the grid is drawn once, data, zone, bands, frequency lines and process chains update in place; several charts can share a page.
+- **Any language**: every caption and text is an option with English defaults; the captions fit from 420 px up.
+- **Plain JavaScript**: global functions, no build step, strict-mode safe; the only dependency is D3.js v7.
 
-**Requirements:** [D3.js v7](https://d3js.org), e.g.
+## Live demo
+
+**[hslu-ige-laes.github.io/d3-mollierhx](https://hslu-ige-laes.github.io/d3-mollierhx/)** –
+[interactive demo](https://hslu-ige-laes.github.io/d3-mollierhx/example/demo.html) with example data
+(Zürich-Kloten, hourly), comfort zone, warning bands, outside air and ventilation line, and the
+[MollierChart test page](https://hslu-ige-laes.github.io/d3-mollierhx/example/chart-test.html).
+
+## Requirements
+
+[D3.js v7](https://d3js.org), e.g.
 `<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>`.
+
+## Installation
+
 The files in `/src` are plain browser scripts (global functions, no build step) that also run in
 strict mode, so they can be inlined, concatenated or wrapped as ES modules. Load order:
 `mollierFunctions.js`, `coordinateGenerator.js`, `drawComfort.js`, then `mollierChart.js`.
 
+## Usage
+
+The D3 functions are structured in a way that the diagram can easily get integrated in own applications. Therefore csv file upload, comfort zone and data plotter are separated.
+
 ### /example/mollierhx.js & demo.html
+
 Exemplary straight forward implementation with a manual csv file uploader and a simple html-file.
 > Note that the data plotter is integrated in mollierhx.js because it is use case dependant what should get displayed.
-
-<hr>
 
 ## Options / API
 
 ### /src/mollierFunctions.js
+
 Functions for the coordinate-transformations in the Mollier hx-diagram.
 In order to understand the equations in the source refer to chapter 2.1 and 2.2 of <a href="http://berndglueck.de/dl/?dl=Stoffwerte+Stoffwerte.pdf" target="_blank">"Glück: Zustands- und Stoffwerte"</a>.
 
 ### /src/coordinateGenerator.js
+
 The function "drawHXCoordinates()" draws the coordinate-lines of temperature,
 density, enthalpy and relative humidity into an SVG-element.
 
@@ -96,6 +120,7 @@ drawHXCoordinates(d3.select("#chart"), 600, 420, {top: 30, right: 60, bottom: 40
 ```
 
 ### /src/drawComfort.js
+
 drawComfort() creates the comfort-zone polygon (`createComfort()` returns its points).
 
 The file also holds overlay helpers (plain globals). They draw into a `<g>` in plot coordinates
@@ -150,6 +175,7 @@ console.log(res.effect);   // "dries"
 ```
 
 ### /src/mollierChart.js
+
 `MollierChart` is a stateful chart for fast, incremental updates: the coordinate grid is drawn once,
 the overlays update in place (used by `pyedautils.plots.plot_mollier_hx_fast`).
 
@@ -192,11 +218,8 @@ Data, comfort zone, bands and frequency lines are clipped to the axes; room and 
 an unclipped layer on top (`g.hx-top > g.hx-points`). Ids (clip path, arrow marker) are unique per
 chart, so several charts can share a page.
 
-### Checks
-`node test/check.js` runs dependency-free checks of the pure helpers (caption layout, ventilation
-effect, state handling) with the sources evaluated in strict mode.
-
 ### /src/csvReader.js
+
 The example contains a csv file upload, but the data can get passed directly from e.g. a database.
 
 The csv file should begin with a date/time column in the format of the
@@ -208,9 +231,13 @@ timestamp,humidity,temperature
 2020-31-03T23:00:00.000Z,53,23.5
 ```
 
-<hr>
+### Checks
+
+`node test/check.js` runs dependency-free checks of the pure helpers (caption layout, ventilation
+effect, state handling) with the sources evaluated in strict mode.
 
 ## Reading the diagram, comfort and saving energy
+
 New to the h,x diagram? The pyedautils guide
 [The h,x diagram in five minutes](https://retomarek.github.io/pyedautils/guides/mollier_hx.html)
 explains it step by step, with worked examples:
@@ -223,24 +250,21 @@ explains it step by step, with worked examples:
 
 Background: [Mollier diagram](https://en.wikipedia.org/wiki/Psychrometrics#Mollier_diagram) on Wikipedia.
 
-<hr>
-
 ## Related projects
+
 - [pyedautils](https://github.com/retomarek/pyedautils): Python Energy Data Analysis Utilities, with the h,x diagram (`plot_mollier_hx`), the comfort compass (`plot_comfort_compass`) and [guides on reading them](https://retomarek.github.io/pyedautils/guides/) (`pip install pyedautils`).
 - [Mollier hx Card](https://github.com/retomarek/mollier-hx-card): the h,x diagram as a Home Assistant dashboard card, with outside air and ventilation line.
 - [Comfort Compass Card](https://github.com/retomarek/comfort-compass-card): the comfort compass as a Home Assistant dashboard card: how many days were too warm, too humid, too dry or too cold.
 - [R Shiny implementation](https://hslu-ige-laes.github.io/lcm/docs/modules/roomTempHum) (module roomTempHum).
 
-<hr>
-
 ## Questions and feedback
+
 - **Questions or ideas?** Ask in [Q&A](https://github.com/hslu-ige-laes/d3-mollierhx/discussions/categories/q-a).
 - **Found a bug or want a feature?** Open an [issue](https://github.com/hslu-ige-laes/d3-mollierhx/issues/new/choose).
-- **Find it useful?** A ⭐ on GitHub helps others find it.
-
-<hr>
+- **Find it useful?** A star on GitHub helps others find it.
 
 ## Repository images
+
 `docs/logo.svg` is generated by `scripts/make_logo.py`. `docs/banner.png` (README header), `docs/social-preview.png` (GitHub social preview, 1280×640) and `docs/screenshot.png` (the demo diagram) are rendered from `scripts/banner.html`, `scripts/social-preview.html` and `example/demo.html` with headless Chromium:
 
 ```bash
@@ -251,7 +275,6 @@ uv run --with playwright python scripts/render_branding.py
 
 The social preview has to be uploaded manually under *Settings → General → Social preview* (there is no API for it).
 
-<hr>
-
 ## License
+
 MIT © Reto Marek, see [LICENSE](LICENSE).
