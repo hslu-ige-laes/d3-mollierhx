@@ -73,8 +73,8 @@ gBrush.call(Brush);
 
 let idle = false;
 
-function handleBrush() {
-    let selection = d3.event.selection;
+function handleBrush(event) {
+    let selection = event.selection;
     
     if(selection) {
         idle = true;
@@ -599,7 +599,7 @@ function drawFreqLines() {
         .attr("fill","none").attr("stroke","transparent").attr("stroke-width",8)
         .style("pointer-events","stroke")
         .style("cursor","crosshair")
-        .on("mouseover mousemove", function(d) { showFreqTip(d.label); })
+        .on("mouseover mousemove", function(event, d) { showFreqTip(d.label, event); })
         .on("mouseout", function() { d3.select("#freqtip").remove(); });
 
     // Value labels (topmost group, above the contours and the mean line) with a
@@ -625,8 +625,8 @@ function drawFreqLines() {
 }
 
 // Floating tooltip shown while hovering a frequency contour line.
-function showFreqTip(value) {
-    let m = d3.mouse(plot.node());
+function showFreqTip(value, event) {
+    let m = d3.pointer(event, plot.node());
     let g = d3.select("#freqtip");
     if(g.empty()) {
         g = plot.append("g").attr("id","freqtip").attr("pointer-events","none");
@@ -855,7 +855,7 @@ function topPointOfContour(c) {
 
 // handle mousover-event on circles
 let currentcolor = null;
-function handlemouseover(d,i) {
+function handlemouseover(event, d) {
     let circle = d3.select(this);
     currentcolor = circle.attr("fill");
     circle.attr("r",1.3*radius)
@@ -902,7 +902,7 @@ function handlemouseover(d,i) {
         .attr("stroke", "#cbd5e1");
 }
 
-function handlemouseout(d,i) {
+function handlemouseout() {
     d3.select(this).attr("r",radius)
                     .attr("fill",currentcolor);
     d3.select("#currentrect").remove();

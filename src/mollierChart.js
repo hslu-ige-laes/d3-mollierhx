@@ -7,7 +7,7 @@
 // layer and is updated in place via D3 data-joins, so dragging a slider or
 // toggling a zone never rebuilds the grid.
 //
-// Depends (same bundle / global, D3 v5):
+// Depends (same bundle / global, D3 v7):
 //   createMollier(convention)          — mollierFunctions.js
 //   drawHXCoordinates(...)             — coordinateGenerator.js
 //   createComfort(rangeT,rangePhi,rangeX,p,mollier) — drawComfort.js
@@ -317,8 +317,8 @@ class MollierChart {
         .attr("x", 0).attr("y", 0).attr("fill", "transparent").style("cursor", "crosshair");
     }
     this._clickCatcher.attr("width", this.width).attr("height", this.height).raise()
-      .on("click", function () {
-        let m = d3.mouse(this);
+      .on("click", function (event) {
+        let m = d3.pointer(event, this);
         let xv = self.x.invert(m[0]), yv = self.y.invert(m[1]);
         let T = self.mollier.temperature(xv, yv);
         let rh = self.mollier.rel_humidity(xv, yv, self.pressure) * 100;
@@ -407,7 +407,7 @@ class MollierChart {
     sel.exit().remove();
     sel.enter().append("circle")
       .attr("r", this.radius).attr("opacity", 0.4).attr("shape-rendering", "optimizeSpeed")
-      .on("mouseover", function (d) { d3.select(this).attr("r", self.radius * 1.6); self._showPointTip(d); })
+      .on("mouseover", function (event, d) { d3.select(this).attr("r", self.radius * 1.6); self._showPointTip(d); })
       .on("mouseout", function () { d3.select(this).attr("r", self.radius); self._hideTip(); })
       .merge(sel)
       .attr("cx", (d) => x(d.x)).attr("cy", (d) => y(d.y))
@@ -458,7 +458,7 @@ class MollierChart {
     }
     let nodes = this.chainLayer.selectAll("g.state").data(sp).enter().append("g").attr("class", "state")
       .attr("transform", (d) => "translate(" + x(d.x) + "," + y(d.y) + ")").style("cursor", "pointer")
-      .on("mouseover", function (d) { self._showChainTip(d); })
+      .on("mouseover", function (event, d) { self._showChainTip(d); })
       .on("mouseout", function () { self._hideTip(); });
     nodes.append("circle").attr("r", 11).attr("fill", "#222").attr("stroke", "white").attr("stroke-width", 2);
     nodes.append("text").attr("text-anchor", "middle").attr("dy", "0.35em")
@@ -575,7 +575,7 @@ class MollierChart {
     hitG.selectAll("path").data(contours).enter().append("path")
       .attr("d", (d) => contourPath(d.c)).attr("fill", "none").attr("stroke", "transparent").attr("stroke-width", 8)
       .style("pointer-events", "stroke").style("cursor", "crosshair")
-      .on("mouseover mousemove", function (d) { self._showFreqTip(d.label, useDays); })
+      .on("mouseover mousemove", function (event, d) { self._showFreqTip(d.label, useDays, event); })
       .on("mouseout", function () { self._hideTip(); });
     let labelG = this.freqLabels.append("g").attr("font-family", "helvetica").attr("font-size", 13).attr("font-weight", "bold");
     contours.forEach(function (d) {
@@ -641,8 +641,8 @@ class MollierChart {
     this._showTip(this.x(d.x), this.y(d.y),
       [d.label, "T: " + d.t + " °C", "φ: " + d.phi + " %", "x: " + d.xg + " g/kg", "h: " + d.h + " kJ/kg"], "#222");
   }
-  _showFreqTip(label, useDays) {
-    let m = d3.mouse(this.plot.node());
+  _showFreqTip(label, useDays, event) {
+    let m = d3.pointer(event, this.plot.node());
     this._showTip(m[0], m[1], [label + (useDays ? " days/year outside" : " h/year outside")], "#222");
   }
 

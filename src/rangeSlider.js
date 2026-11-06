@@ -131,16 +131,18 @@ function createRangeSlider(Width,Height,container_id) {
 		}
 	}
 	
-	function refreshValues_brush() {
-		slider.values = d3.event.selection;
+	function refreshValues_brush(event) {
+		if(!event.selection) return;
+		slider.values = [...event.selection];
 		slider.values[0] = xivt(slider.values[0]);
 		slider.values[1] = xivt(slider.values[1]);
 		leftinput.attr("value",slider.values[0]);
 		rightinput.attr("value",slider.values[1]);
 		if(changeEnabled) slider.onChange(slider.values[0],slider.values[1]);
 	}
-	function refreshValues_end() {
-		slider.values = d3.event.selection;
+	function refreshValues_end(event) {
+		if(!event.selection) return;
+		slider.values = [...event.selection];
 		slider.values[0] = xivt(slider.values[0]);
 		slider.values[1] = xivt(slider.values[1]);
 		leftinput.attr("value",slider.values[0]);
