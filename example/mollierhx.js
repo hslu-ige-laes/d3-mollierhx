@@ -1,15 +1,26 @@
 let CurrentData = {};  // datacontainer that gets filled when Data is loaded via the fileinput-div
 let dataXY = [];       // calculated data-positions on the diagram
 
-let p = 101325;
-document.getElementById("pressure_input").value = p;
-document.getElementById("altitude_input").value = 0;
+// Default location: 450 m a.s.l. (Swiss Plateau), the same as the pyedautils
+// guide. ISA barometric formula, as in handle_altitude().
+let altitude0 = 450;
+let p = 101325 * Math.pow(1 - 2.25577e-5 * altitude0, 5.25588);
+document.getElementById("pressure_input").value = Math.round(p);
+document.getElementById("altitude_input").value = altitude0;
 
 // Mollier coordinate convention ('classical' default, or 'glueck').
 let convention = "classical";
 let mollier = createMollier(convention);
 
-let Height = 700;
+// Default height: fit the window, so the sticky diagram stays fully visible
+// while the controls scroll (the height field still allows any value).
+function defaultHeight() {
+    let stacked = window.innerWidth <= 980;   // one-column layout, see demo.html
+    let avail = stacked ? window.innerHeight * 0.55 : window.innerHeight - 70;
+    return Math.round(Math.max(380, Math.min(700, avail)));
+}
+let Height = defaultHeight();
+document.getElementById("height_input").value = Height;
 
 let dimensioninfo = document.getElementById("test").getBoundingClientRect();
 // this svg is created in order to measure the right width of the #test-div
@@ -372,17 +383,27 @@ function handle_p() {
     // keep the altitude field in sync (inverse ISA barometric formula)
     let h = (1 - Math.pow(Number(p)/101325, 1/5.25588)) / 2.25577e-5;
     document.getElementById("altitude_input").value = Math.round(h);
+    document.getElementById("altitude_slider").value = Math.round(h);
     calcData();
     draw_background();
 }
 
 function handle_altitude() {
     let h = Number(document.getElementById("altitude_input").value);
+    document.getElementById("altitude_slider").value = h;
     // ISA barometric formula: pressure [Pa] from altitude [m a.s.l.]
     p = 101325 * Math.pow(1 - 2.25577e-5 * h, 5.25588);
     document.getElementById("pressure_input").value = Math.round(p);
     calcData();
     draw_background();
+}
+
+// Altitude slider: updates the field at once and redraws at most once per frame.
+let altitudeFrame = null;
+function slide_altitude(value) {
+    document.getElementById("altitude_input").value = value;
+    if(altitudeFrame) return;
+    altitudeFrame = requestAnimationFrame(function() { altitudeFrame = null; handle_altitude(); });
 }
 
 // Data-related functions
