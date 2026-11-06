@@ -4,12 +4,18 @@
   <meta charset="utf-8" />
   <title>MollierChart test</title>
   <style>
-    body { font-family: monospace; margin: 16px; }
-    #chart { width: 900px; }
+    body { font-family: monospace; margin: 16px; background: #fff; }
+    #chart { width: 900px; max-width: 100%; }
     #log { white-space: pre; background: #f5f5f5; padding: 8px; margin-top: 8px; }
   </style>
 </head>
 <body>
+  <p>
+    Query parameters: <code>h</code> chart height in px (default 640),
+    <code>out</code> = <code>inside</code> | <code>outside</code> | <code>none</code> (outside air point),
+    <code>lang</code> = <code>de</code> (German captions and texts, to show they are overridable).
+    Example: <a href="?h=420&amp;out=outside&amp;lang=de">?h=420&amp;out=outside&amp;lang=de</a>
+  </p>
   <div id="chart"></div>
   <div id="log"></div>
 
@@ -38,12 +44,29 @@
 
     function ms(fn) { var t0 = performance.now(); fn(); return (performance.now() - t0); }
 
+    var q = new URLSearchParams(location.search);
+    var H = Number(q.get("h")) || 640;
+    var OUT = q.get("out") || "inside";
+    var DE = q.get("lang") === "de";
+    // Every visible text can be replaced (here: German) — no built-in translations.
+    var captionsDe = { temperature: "Temperatur ϑ [°C]", rel_humidity: "rel. Feuchte φ [%]",
+                       density: "Dichte ρ [kg/m³]", enthalpy: "Enthalpie h [kJ/kg]", x_axis: "x [g/kg]" };
+    var textsDe = { outdoor: "Aussenluft", now: "Jetzt", ventilation_dries: "Lüften trocknet",
+                    ventilation_humidifies: "Lüften befeuchtet", ventilation_neutral: "Lüften: keine Änderung",
+                    freq_hours: "{n} h/Jahr ausserhalb", freq_days: "{n} Tage/Jahr ausserhalb",
+                    altitude: "{alt} m ü. M.", tip_phi: "φ", tip_td: "Tp" };
+
     window.__results = {};
     try {
       var data = makeData(2000);
       var chart;
       window.__results.construct = ms(function () {
-        chart = new MollierChart("#chart", { height: 640, domainX: [0, 0.02], domainY: [-15, 38] });
+        chart = new MollierChart("#chart", {
+          height: H, domainX: [0, 0.02], domainY: [-15, 38],
+          lineOpts: { xAxisTitle: DE ? "Wassergehalt x [g/kg]" : "absolute water content x [g/kg]" },
+          captions: DE ? captionsDe : undefined,
+          texts: DE ? textsDe : undefined
+        });
       });
       window.__results.setData = ms(function () { chart.setData(data); });
       window.__results.setComfort = ms(function () { chart.setComfort({ t: [20, 26], phi: [0.3, 0.65], x: [0, 0.0115] }); });
@@ -64,6 +87,16 @@
       // The rare interaction (grid redraw — allowed to be slower):
       window.__results.setDomain = ms(function () { chart.setDomain([0, 0.025], [-10, 40]); });
 
+      // Room point and outside air (edge arrow when outside the axes).
+      window.__results.points = ms(function () {
+        chart.setCurrent({ t: 22.5, rh: 48 });
+        if (OUT === "inside") chart.setOutdoor({ t: 6.8, rh: 89 });
+        else if (OUT === "outside") chart.setOutdoor({ t: -14.5, rh: 80 });
+      });
+      window.__results.ventilationEffect = chart.ventilationEffect();
+      window.__results.ventilationNote = chart.ventilationNote();
+      window.__results.edgeArrows = document.querySelectorAll(".hx-edge-arrow").length;
+      window.__results.ventilationLines = document.querySelectorAll(".hx-ventilation-line").length;
       window.__results.svgCount = document.querySelectorAll("svg").length;
       window.__results.circles = document.querySelectorAll(".hx-scatter circle").length;
       window.__results.freqPaths = document.querySelectorAll(".hx-freq path").length;

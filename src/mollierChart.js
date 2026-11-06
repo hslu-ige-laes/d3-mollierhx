@@ -11,6 +11,7 @@
 //   createMollier(convention)          — mollierFunctions.js
 //   drawHXCoordinates(...)             — coordinateGenerator.js
 //   createComfort(rangeT,rangePhi,rangeX,p,mollier) — drawComfort.js
+//   hxDrawOutdoor / hxDrawStatePoint / hxTexts ...  — drawComfort.js
 //
 // Usage:
 //   const chart = new MollierChart("#chart", { height: 700 });
@@ -20,6 +21,10 @@
 //   chart.setFrequency({show:true, days:false, smoothing:4});
 //   chart.setProcessChain(states);          // [{x,y,number,label,t,phi,xg,h}]
 //   chart.setDomain([0,0.02], [-15,40]);    // grid redraw (rare)
+//   chart.setCurrent({t:22.5, rh:48});      // room point (edge arrow if off-axis)
+//   chart.setOutdoor({t:4, rh:85});         // outside air + ventilation line/note
+//   chart.setTexts({outdoor:"Aussenluft"}); // any user-visible text
+//   chart.setCaptions({temperature:"Temperatur ϑ [°C]"}); // grid captions
 
 // ---------------------------------------------------------------------------
 // Frequency-contour helpers (pure, grid-space) — bandwidth/feathering tuned to
@@ -119,6 +124,20 @@ function seasonIndex(date) {
 const DEFAULT_SEASON_COLORS = ["#74add1", "#a6d96a", "#f46d43", "#a6611a"]; // winter,spring,summer,fall
 const DEFAULT_SEASON_LABELS = ["Winter", "Spring", "Summer", "Fall"];
 
+// User-visible texts of MollierChart (English defaults) on top of the overlay
+// texts in HX_DEFAULT_TEXTS (outdoor, ventilation_*, state_value, ...).
+// Override any of them via opts.texts or chart.setTexts({...}).
+const MOLLIER_CHART_DEFAULT_TEXTS = {
+  now: "Now",                                // tooltip title of the room point
+  tip_x: "x", tip_t: "T", tip_phi: "φ", tip_h: "h", tip_td: "Td",   // tooltip row labels
+  freq_hours: "{n} h/year outside",          // frequency-line tooltip
+  freq_days: "{n} days/year outside",
+  altitude: "{alt} m a.s.l.",                // info top right; "" hides it
+  pressure: "{hpa} hPa"
+};
+
+let mollierChartCounter = 0;
+
 function toDate(v) {
   if (v == null) return null;
   if (v instanceof Date) return v;
@@ -146,6 +165,9 @@ class MollierChart {
       showEnthalpy: true, showAbsHumidity: true,
       xAxisTitle: "absolute water content x [g/kg]"
     }, opts.lineOpts || {});
+    if (opts.captions) this.lineOpts.captions = Object.assign({}, this.lineOpts.captions || {}, opts.captions);
+    this._texts = Object.assign({}, MOLLIER_CHART_DEFAULT_TEXTS, hxTexts(), opts.texts || {});
+    this._uid = "hx" + (++mollierChartCounter);
     this.seasonColors = opts.seasonColors || DEFAULT_SEASON_COLORS;
     this.seasonLabels = opts.seasonLabels || DEFAULT_SEASON_LABELS;
     this.radius = opts.radius || 5;
@@ -159,6 +181,11 @@ class MollierChart {
     this._red = null;
     this._freq = { show: false, days: false, smoothing: 4 };
     this._chain = [];         // process-chain states
+    this._current = null;     // room point (raw input, see hxState)
+    this._currentOpts = {};
+    this._outdoor = null;     // outside point (raw input)
+    this._outdoorOpts = {};
+    this._outdoorResult = null;
     this._freqCache = null;
     this._timeFormat = d3.utcFormat("%Y-%m-%d %H:%M");
 
@@ -185,18 +212,21 @@ class MollierChart {
 
     this.background = this.canvas.append("g").attr("id", "theplot");
 
-    let clipId = "hxclip";
-    this.canvas.append("defs").append("clipPath").attr("id", clipId)
-      .append("rect").attr("width", this.width).attr("height", this.height);
+    // Ids are unique per chart, so several charts can share one page.
+    let clipId = this._uid + "-clip";
+    this._clipId = clipId;
+    this._arrowId = this._uid + "-arrow";
+    this._satClipId = this._uid + "-freqsat";
+    let clipUrl = hxAddClipPath(this.canvas, clipId, this.width, this.height);
     // arrow marker for the process chain
     this.canvas.select("defs").append("marker")
-      .attr("id", "hx-arrow").attr("viewBox", "0 0 10 10")
+      .attr("id", this._arrowId).attr("viewBox", "0 0 10 10")
       .attr("refX", 9).attr("refY", 5).attr("markerWidth", 6).attr("markerHeight", 6)
       .attr("orient", "auto").append("path").attr("d", "M 0 0 L 10 5 L 0 10 z").attr("fill", "#444");
 
     this.plot = this.canvas.append("g")
       .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")")
-      .attr("clip-path", "url(#" + clipId + ")");
+      .attr("clip-path", clipUrl);
 
     // overlay layers, in z-order
     this.comfortLayer = this.plot.append("g").attr("class", "hx-comfort");
@@ -208,7 +238,12 @@ class MollierChart {
     this.chainLayer = this.plot.append("g").attr("class", "hx-chain");
     this.freqHover = this.plot.append("g").attr("class", "hx-freq-hover");
     this.freqLabels = this.plot.append("g").attr("class", "hx-freq-labels").style("pointer-events", "none");
-    this.tipLayer = this.plot.append("g").attr("class", "hx-tip").style("pointer-events", "none");
+    // Unclipped layers on top: room/outside points (edge arrows sit on the
+    // border of the axes, the ventilation note just above them) and tooltip.
+    this.top = this.canvas.append("g").attr("class", "hx-top")
+      .attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
+    this.pointLayer = this.top.append("g").attr("class", "hx-points");
+    this.tipLayer = this.top.append("g").attr("class", "hx-tip").style("pointer-events", "none");
 
     this.x = d3.scaleLinear().range([0, this.width]).domain(this.domainX);
     this.y = d3.scaleLinear().range([this.height, 0]).domain(this.domainY);
@@ -228,11 +263,14 @@ class MollierChart {
     let diag = this.background.select("#hx_mollier_diagram");
     if (diag.empty()) return;
     let alt = (1 - Math.pow(Number(this.pressure) / 101325, 1 / 5.25588)) / 2.25577e-5;
-    let g = diag.append("g").style("font-family", "Tahoma, Geneva, sans-serif");
-    g.append("text").attr("x", this.margin.left + this.width).attr("y", this.margin.top - 22)
-      .attr("text-anchor", "end").attr("fill", "#4d4d4d").attr("font-size", 12).text(alt.toFixed(0) + " m a.s.l.");
-    g.append("text").attr("x", this.margin.left + this.width).attr("y", this.margin.top - 8)
-      .attr("text-anchor", "end").attr("fill", "#4d4d4d").attr("font-size", 12).text((this.pressure / 100).toFixed(0) + " hPa");
+    let g = diag.append("g").attr("class", "hx-info").style("font-family", "Tahoma, Geneva, sans-serif");
+    let lines = [hxFormat(this._texts.altitude || "", { alt: alt.toFixed(0) }),
+                 hxFormat(this._texts.pressure || "", { hpa: (this.pressure / 100).toFixed(0) })]
+      .filter((t) => t !== "");
+    lines.forEach((t, i) => {
+      g.append("text").attr("x", this.margin.left + this.width).attr("y", this.margin.top - 8 - 14 * (lines.length - 1 - i))
+        .attr("text-anchor", "end").attr("fill", "#4d4d4d").attr("font-size", 12).text(t);
+    });
   }
 
   // --- grid-affecting setters --------------------------------------------
@@ -247,6 +285,19 @@ class MollierChart {
   setCoordinateLines(lineOpts) {
     Object.assign(this.lineOpts, lineOpts);
     this._drawGrid();
+    return this;
+  }
+  // Caption texts of the grid, see HX_DEFAULT_CAPTIONS (merged; "" hides one).
+  setCaptions(captions) {
+    this.lineOpts.captions = Object.assign({}, this.lineOpts.captions || {}, captions || {});
+    this._drawGrid();
+    return this;
+  }
+  // Any user-visible text (MOLLIER_CHART_DEFAULT_TEXTS + HX_DEFAULT_TEXTS), merged.
+  setTexts(texts) {
+    Object.assign(this._texts, texts || {});
+    this._drawGrid();
+    this._drawPoints();
     return this;
   }
   setPressure(p) {
@@ -274,7 +325,7 @@ class MollierChart {
     this.width = this.Width - this.margin.left - this.margin.right;
     this.height = this.Height - this.margin.top - this.margin.bottom;
     this.canvas.attr("width", this.Width).attr("height", this.Height);
-    this.canvas.select("#hxclip rect").attr("width", this.width).attr("height", this.height);
+    hxAddClipPath(this.canvas, this._clipId, this.width, this.height);
     this.x.range([0, this.width]); this.y.range([this.height, 0]);
     this._drawGrid();
     this._redrawAllOverlays();
@@ -442,6 +493,93 @@ class MollierChart {
   }
   _drawBands() { this._drawBand(this.bandOrangeLayer, this._orange); this._drawBand(this.bandRedLayer, this._red); }
 
+  // --- room point, outside air and ventilation ---------------------------
+  // Current room state as {t, rh} (rh in %), {t, phi} (0..1) or {x, y}; null
+  // removes it. Drawn black on top; outside the axes as an edge arrow with
+  // its value. opts: {color}.
+  setCurrent(state, opts) {
+    this._current = state || null;
+    this._currentOpts = opts || {};
+    this._drawPoints();
+    return this;
+  }
+
+  // Outside air as {t, rh} / {t, phi} / {x, y}; null removes it. Hollow blue
+  // circle (edge arrow when off-axis), plus — when a room point is set — the
+  // dashed ventilation line and the note "ventilating dries / adds moisture /
+  // no change" above the axes. opts: {color, ventilationLine (true),
+  // note (true), threshold (0.0003 kg/kg), room (overrides setCurrent)}.
+  setOutdoor(state, opts) {
+    this._outdoor = state || null;
+    this._outdoorOpts = opts || {};
+    this._drawPoints();
+    return this;
+  }
+
+  // 'dries' | 'humidifies' | 'neutral' | null (no outside or room point).
+  ventilationEffect() {
+    let room = this._outdoorOpts.room || this._current;
+    return hxVentilationEffect(hxState(room, this.mollier, this.pressure),
+      hxState(this._outdoor, this.mollier, this.pressure), this._outdoorOpts.threshold);
+  }
+  // The localized sentence for ventilationEffect() ("" if none).
+  ventilationNote() {
+    return hxVentilationNote(this.ventilationEffect(), this._texts);
+  }
+
+  _ctx() {
+    return { x: this.x, y: this.y, width: this.width, height: this.height, mollier: this.mollier, pressure: this.pressure };
+  }
+
+  _drawPoints() {
+    let self = this, ctx = this._ctx(), T = this._texts;
+    this.pointLayer.selectAll("*").remove();
+    this._outdoorResult = null;
+    let bindTip = function (node, content, bg, grow) {
+      if (!node) return;
+      node.style("cursor", "pointer")
+        .on("mouseover", function () {
+          if (grow) d3.select(this).attr("r", 10);
+          let c = content();
+          self._showTip(c.x, c.y, c.lines, bg);
+        })
+        .on("mouseout", function () { if (grow) d3.select(this).attr("r", 6); self._hideTip(); });
+    };
+    let room = this._outdoorOpts.room || this._current;
+    if (this._outdoor) {
+      let o = Object.assign({}, this._outdoorOpts, { texts: T });
+      let res = hxDrawOutdoor(this.pointLayer, ctx, this._outdoor, room, o);
+      this._outdoorResult = res;
+      if (res.outdoor && res.marker) {
+        let s = res.outdoor, pos = hxClampPoint(ctx, s);
+        bindTip(res.marker, () => ({
+          x: pos.cx, y: pos.cy, lines: [T.outdoor].concat(self._stateLines(s, 1)).concat(res.note ? [res.note] : [])
+        }), this._outdoorOpts.color || HX_OUTDOOR_COLOR, false);
+      }
+    }
+    if (this._current) {
+      let c = this._currentOpts;
+      let pt = hxDrawStatePoint(this.pointLayer, ctx, this._current,
+        { color: c.color || HX_ROOM_COLOR, className: "hx-current", texts: T });
+      if (pt) {
+        bindTip(pt.marker, () => ({ x: pt.pos.cx, y: pt.pos.cy, lines: [T.now].concat(self._stateLines(pt.state, 2)) }),
+          c.color || "#222", !pt.outside);
+      }
+    }
+  }
+
+  // Tooltip rows x / T / φ / Td for a normalised state.
+  _stateLines(s, dec) {
+    let T = this._texts, m = this.mollier;
+    let td = m.temperature_p_sat(s.phi * m.p_sat(s.t));
+    return [
+      T.tip_x + ": " + (s.x * 1000).toFixed(2) + " g/kg",
+      T.tip_t + ": " + s.t.toFixed(dec) + " °C",
+      T.tip_phi + ": " + (s.phi * 100).toFixed(dec === 1 ? 0 : 1) + " %",
+      T.tip_td + ": " + (td == null ? "–" : td.toFixed(1)) + " °C"
+    ];
+  }
+
   // --- process chain ------------------------------------------------------
   setProcessChain(states) { this._chain = states || []; this._drawChain(); return this; }
 
@@ -454,7 +592,7 @@ class MollierChart {
       this.chainLayer.append("line")
         .attr("x1", x(sp[i - 1].x)).attr("y1", y(sp[i - 1].y))
         .attr("x2", x(sp[i].x)).attr("y2", y(sp[i].y))
-        .attr("stroke", "#444").attr("stroke-width", 2).attr("marker-end", "url(#hx-arrow)");
+        .attr("stroke", "#444").attr("stroke-width", 2).attr("marker-end", "url(#" + this._arrowId + ")");
     }
     let nodes = this.chainLayer.selectAll("g.state").data(sp).enter().append("g").attr("class", "state")
       .attr("transform", (d) => "translate(" + x(d.x) + "," + y(d.y) + ")").style("cursor", "pointer")
@@ -533,8 +671,8 @@ class MollierChart {
     }
     let pad = Math.max(this.width, this.height) + 200;
     let pts = [[-pad, this.height + pad]].concat(sat).concat([[this.width + pad, -pad], [-pad, -pad]]);
-    let cp = this.canvas.select("#hxFreqSatClip");
-    if (cp.empty()) cp = this.canvas.append("clipPath").attr("id", "hxFreqSatClip");
+    let cp = this.canvas.select("#" + this._satClipId);
+    if (cp.empty()) cp = this.canvas.append("clipPath").attr("id", this._satClipId);
     cp.selectAll("polygon").remove();
     cp.append("polygon").attr("points", pts.map((q) => q.join(",")).join(" "));
   }
@@ -568,10 +706,10 @@ class MollierChart {
       return dstr;
     }
     this._updateSaturationClip();
-    let pathsG = this.freqLines.append("g").attr("clip-path", "url(#hxFreqSatClip)");
+    let pathsG = this.freqLines.append("g").attr("clip-path", "url(#" + this._satClipId + ")");
     pathsG.selectAll("path").data(contours).enter().append("path")
       .attr("d", (d) => contourPath(d.c)).attr("fill", "none").attr("stroke", "#333").attr("stroke-width", 1.6);
-    let hitG = this.freqHover.append("g").attr("clip-path", "url(#hxFreqSatClip)");
+    let hitG = this.freqHover.append("g").attr("clip-path", "url(#" + this._satClipId + ")");
     hitG.selectAll("path").data(contours).enter().append("path")
       .attr("d", (d) => contourPath(d.c)).attr("fill", "none").attr("stroke", "transparent").attr("stroke-width", 8)
       .style("pointer-events", "stroke").style("cursor", "crosshair")
@@ -597,6 +735,7 @@ class MollierChart {
     this._drawChain();
     this._drawFreqLines();
     this._drawMeanLines();
+    this._drawPoints();
   }
   _redrawAllOverlays() {
     this._drawScatter();
@@ -605,6 +744,7 @@ class MollierChart {
     this._drawChain();
     this._drawFreqLines();
     this._drawMeanLines();
+    this._drawPoints();
   }
 
   // --- SVG tooltip (embed-safe; no HTML div) ------------------------------
@@ -628,22 +768,24 @@ class MollierChart {
   _showPointTip(d) {
     let X = d.x, Y = d.y, temp = this.mollier.temperature(X, Y), phi = this.mollier.rel_humidity(X, Y, this.pressure);
     let hh = this.mollier.enthalpy(X, Y), tdp = this.mollier.temperature_p_sat(phi * this.mollier.p_sat(temp));
+    let T = this._texts;
     this._showTip(this.x(X), this.y(Y), [
       d.time ? this._timeFormat(d.time) : "",
-      "x:  " + (X * 1000).toFixed(2) + " g/kg",
-      "T:  " + temp.toFixed(2) + " °C",
-      "φ:  " + (phi * 100).toFixed(1) + " %",
-      "h:  " + hh.toFixed(2) + " kJ/kg",
-      "Td: " + tdp.toFixed(2) + " °C"
+      T.tip_x + ":  " + (X * 1000).toFixed(2) + " g/kg",
+      T.tip_t + ":  " + temp.toFixed(2) + " °C",
+      T.tip_phi + ":  " + (phi * 100).toFixed(1) + " %",
+      T.tip_h + ":  " + hh.toFixed(2) + " kJ/kg",
+      T.tip_td + ": " + tdp.toFixed(2) + " °C"
     ].filter((s) => s !== ""));
   }
   _showChainTip(d) {
     this._showTip(this.x(d.x), this.y(d.y),
-      [d.label, "T: " + d.t + " °C", "φ: " + d.phi + " %", "x: " + d.xg + " g/kg", "h: " + d.h + " kJ/kg"], "#222");
+      [d.label, this._texts.tip_t + ": " + d.t + " °C", this._texts.tip_phi + ": " + d.phi + " %",
+        this._texts.tip_x + ": " + d.xg + " g/kg", this._texts.tip_h + ": " + d.h + " kJ/kg"], "#222");
   }
   _showFreqTip(label, useDays, event) {
     let m = d3.pointer(event, this.plot.node());
-    this._showTip(m[0], m[1], [label + (useDays ? " days/year outside" : " h/year outside")], "#222");
+    this._showTip(m[0], m[1], [hxFormat(useDays ? this._texts.freq_days : this._texts.freq_hours, { n: label })], "#222");
   }
 
   destroy() { this.canvas.remove(); }
