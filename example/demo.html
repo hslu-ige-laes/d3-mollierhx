@@ -57,6 +57,12 @@
     @media (max-width: 980px) {
         .layout { grid-template-columns: 1fr; }
     }
+    /* The diagram stays in view while the controls scroll, so every change is
+       visible right away (beside the controls, or above them on narrow screens). */
+    .diagram-card { position: sticky; top: 12px; z-index: 2; }
+    @media (max-width: 980px) {
+        .diagram-card { top: 0; border-radius: 0 0 12px 12px; }
+    }
 
     .card {
         background: var(--card);
@@ -209,6 +215,7 @@
         margin-bottom: 5px;
     }
     .field .with-unit { display: flex; align-items: center; gap: 6px; }
+    .altitude-slider { width: 100%; margin-top: 12px; accent-color: var(--accent); cursor: pointer; }
     .field .with-unit input { width: 100%; text-align: right; }
     .field .with-unit .unit { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
@@ -244,7 +251,7 @@
     .legend .seasons .item { font-size: 12px; }
 
     /* ---- description ------------------------------------------------- */
-    .desc { margin: 0 18px 22px; }
+    .desc p + p { margin-top: 8px; }
     .desc p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink); }
     .desc code { background: #f1f5f9; border-radius: 4px; padding: 1px 5px; }
 </style>
@@ -293,6 +300,8 @@
                             </div>
                         </div>
                     </div>
+                    <input type="range" id="altitude_slider" class="altitude-slider" min="-400" max="4000" step="10" value="450"
+                           autocomplete="off" aria-label="Altitude [m a.s.l.]" oninput="slide_altitude(this.value)">
                 </div>
             </div>
 
@@ -347,7 +356,7 @@
                 </div>
                 <div class="inline-field">
                     <label>diagram height <span class="unit">[px]</span></label>
-                    <input type="text" autocomplete="off" id="height_input" value="700" onchange="handle_height()">
+                    <input type="text" autocomplete="off" id="height_input" value="" onchange="handle_height()">
                 </div>
             </div>
 
@@ -427,24 +436,24 @@
                 </div>
             </div>
 
+            <div class="card desc">
+                <div class="title">How to use</div>
+                <p>
+                    Drag a rectangle on the diagram to zoom (click to reset). The sliders set the diagram domain and the
+                    comfort zone (shown as the green polygon, with dashed orange/red tolerance bands). Switch the coordinate
+                    convention between <code>classical</code> and <code>Glück</code>. Set the altitude with the slider (default 450&nbsp;m a.s.l.) or enter a pressure —
+                    the other follows automatically (the value is shown top-right of the chart). To plot your own data, upload
+                    a <code>.csv</code> with three columns: time (ISO 8601), humidity [%], temperature [°C]. Meteonorm hourly
+                    <code>.dat</code> files (year, month, day, hour, temperature, rel. humidity) are recognised automatically.
+                    Points are coloured by season. The example data set (<code>zuerich-kloten.csv</code>, hourly outside
+                    air of one year) is loaded on start. The black dot is the current room state, the hollow blue circle the
+                    outside air; the dashed line between them is the ventilation (mixing) line, and the note above the
+                    diagram says whether airing dries the room or adds moisture (outside air drier or moister by more than
+                    0.3&nbsp;g/kg). A point outside the axes becomes an arrow on the edge with its value — try an outside
+                    temperature of &minus;25&nbsp;°C.
+                </p>
+            </div>
         </div>
-    </div>
-
-    <div class="card desc">
-        <p>
-            Drag a rectangle on the diagram to zoom (click to reset). The sliders set the diagram domain and the
-            comfort zone (shown as the green polygon, with dashed orange/red tolerance bands). Switch the coordinate
-            convention between <code>classical</code> and <code>Glück</code>. Enter either an altitude or a pressure —
-            the other follows automatically (the value is shown top-right of the chart). To plot your own data, upload
-            a <code>.csv</code> with three columns: time (ISO 8601), humidity [%], temperature [°C]. Meteonorm hourly
-            <code>.dat</code> files (year, month, day, hour, temperature, rel. humidity) are recognised automatically.
-            Points are coloured by season. The example data set (<code>zuerich-kloten.csv</code>, hourly outside
-            air of one year) is loaded on start. The black dot is the current room state, the hollow blue circle the
-            outside air; the dashed line between them is the ventilation (mixing) line, and the note above the
-            diagram says whether airing dries the room or adds moisture (outside air drier or moister by more than
-            0.3&nbsp;g/kg). A point outside the axes becomes an arrow on the edge with its value — try an outside
-            temperature of &minus;25&nbsp;°C.
-        </p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
