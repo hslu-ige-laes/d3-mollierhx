@@ -8,10 +8,20 @@ The authors decline any liability or responsibility in connection with the publi
 
 <hr>
 
+## Live demo
+**[hslu-ige-laes.github.io/d3-mollierhx](https://hslu-ige-laes.github.io/d3-mollierhx/)** –
+[interactive demo](https://hslu-ige-laes.github.io/d3-mollierhx/example/demo.html) with example data
+(Zürich-Kloten, hourly), comfort zone, warning bands, outside air and ventilation line, and the
+[MollierChart test page](https://hslu-ige-laes.github.io/d3-mollierhx/example/chart-test.html).
+
+<hr>
+
 ## Overview
 The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to describe changes of state of humid air. In the present case it is used to show comfort states regarding temperature and humidity.
 
 <img alt="mollier hx diagram" src="img/mollierhx.png" width="100%">
+
+Try it in the browser: [live demo](https://hslu-ige-laes.github.io/d3-mollierhx/example/demo.html).
 
 - It is valid for a certain air pressure. The quantities temperature, humidity (absolute and relative), enthalpy and density can be read off directly.
 - The basic scale for the h,x-diagram is a temperature scale, which is applied vertically as y-axis.
