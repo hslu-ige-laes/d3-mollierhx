@@ -1,0 +1,19 @@
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question or idea
+      description: Integrating the diagram, reading it, an idea for the library. For bugs, please open an issue instead.
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: HTML / JavaScript (optional)
+      description: The relevant part of your page, e.g. how you call drawHXCoordinates() or createComfort().
+      render: html
+  - type: input
+    id: versions
+    attributes:
+      label: D3 version and browser (optional)
+      placeholder: "D3 v5.16.0 in Firefox 145"

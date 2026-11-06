@@ -10,11 +10,23 @@
 // [domainX] = kg/kg
 // [domainY] = °C
 // [p] = Pa = N/m^2
+//
+// opts (all optional):
+//   showTemperature, showDensity, showRelHumidity, showEnthalpy,
+//   showAbsHumidity  — curve families on/off (default true)
+//   xAxisTitle       — centred title below the x axis (default "")
+//   captions         — { temperature, rel_humidity, density, enthalpy,
+//                        x_axis, x_axis_title }: caption texts, defaults in
+//                        HX_DEFAULT_CAPTIONS; "" hides a caption
 
 function drawHXCoordinates(container,Width,Height,margin,domainX,domainY,p,mollier,opts) {
 
     // Resolve the Mollier suite for the chosen convention (default 'classical').
     if (!mollier) mollier = createMollier();
+
+    // Loop counters shared by the sections below. Declared so the file also
+    // runs in strict mode / as an ES module (they used to be implicit globals).
+    let i, dt;
 
     // Per-curve-family visibility. When a family is switched off, everything
     // belonging to it is suppressed: the iso-lines, their value labels and the
@@ -25,7 +37,10 @@ function drawHXCoordinates(container,Width,Height,margin,domainX,domainY,p,molli
     const showPhi = opts.showRelHumidity !== false;
     const showH = opts.showEnthalpy !== false;
     const showX = opts.showAbsHumidity !== false;
-    const xAxisTitle = (opts.xAxisTitle != null) ? opts.xAxisTitle : "";
+    // Caption texts (English defaults, overridable for translations). An empty
+    // string suppresses that caption.
+    const captions = hxResolveCaptions(opts);
+    const xAxisTitle = captions.x_axis_title;
     const temperature = mollier.temperature;
     const density = mollier.density;
     const rel_humidity = mollier.rel_humidity;
@@ -122,62 +137,63 @@ function drawHXCoordinates(container,Width,Height,margin,domainX,domainY,p,molli
 
     // units:
 
+    // Unit caption of the x axis: in the right margin, beside the end of the
+    // axis, on the baseline of the tick numbers (so it never covers the last
+    // tick number). The font shrinks when the margin is too narrow.
     let unit = axisX.append("g").attr("class","unit");
-    unit.append("rect")
-            .attr("x",width-6)
-            .attr("y",7)
-            .attr("width",58)
-            .attr("height",12)
-            .attr("fill","white");
-    unit.append("text")
-            .attr("x",width)
-            .attr("y",20)
-            .attr("fill","black")
-            .attr("font-size",12)
-            .text("x [g/kg]");
+    if(captions.x_axis) {
+        let xc = hxFitXAxisCaption(captions.x_axis, margin.right);
+        unit.append("text")
+                .attr("class","hx-caption hx-caption-x-axis")
+                .attr("x",width+12)
+                .attr("y",20)
+                .attr("text-anchor","start")
+                .attr("fill","black")
+                .attr("font-size",xc.fontSize)
+                .text(xc.text);
+    }
 
     // y-axis title: vertical, centred along the left edge (rotated like the
     // right-edge captions), left of the tick numbers.
-    plot.append("g").attr("class","unit")
-            .attr("transform","translate("+(-(margin.left)+24)+","+(height/2)+")rotate(-90)")
-            .append("text")
-                .attr("text-anchor","middle")
-                .attr("fill",colors.t)
-                .attr("font-size",12)
-                .text("Temperature ϑ [°C]");
+    if(captions.temperature) {
+        let tc = hxFitCaption(captions.temperature, height - 12);
+        plot.append("g").attr("class","unit")
+                .attr("transform","translate("+(-(margin.left)+24)+","+(height/2)+")rotate(-90)")
+                .append("text")
+                    .attr("class","hx-caption hx-caption-temperature")
+                    .attr("text-anchor","middle")
+                    .attr("fill",colors.t)
+                    .attr("font-size",tc.fontSize)
+                    .text(tc.text);
+    }
 
     // Right-edge captions, stacked top→bottom along the (rotated) right axis:
-    // Enthalpy, relative humidity, Density.
+    // relative humidity, density, enthalpy. Each visible caption gets one
+    // equal segment of the axis, ending flush with the top of its segment;
+    // the font size follows from text length and segment length, so the
+    // captions fit at any chart height.
     unit = plot.append("g").attr("class","unit")
             .attr("transform","translate("+width+",0)rotate(-90)translate("+(-height/2)+",0)");
-    if(showPhi) {
-        unit.append("text")
-                .attr("x",120)
-                .attr("y",13)
-                .attr("fill",colors.phi)
-                .attr("font-size",12)
-                .text("rel. humidity φ [%]");
-    }
-    if(showRho) {
-        unit.append("text")
-                .attr("x",0)
-                .attr("y",13)
-                .attr("fill",colors.rho)
-                .attr("font-size",12)
-                .text("Density ρ [kg/m³]");
-    }
-    if(showH) {
-        unit.append("text")
-                .attr("x",-130)
-                .attr("y",13)
-                .attr("fill","#9a9a9a")
-                .attr("font-size",12)
-                .text("Enthalpy [kJ/kg]");
-    }
+    let rightCaps = [];
+    if(showPhi && captions.rel_humidity) rightCaps.push({key: "rel-humidity", text: captions.rel_humidity, fill: colors.phi});
+    if(showRho && captions.density) rightCaps.push({key: "density", text: captions.density, fill: colors.rho});
+    if(showH && captions.enthalpy) rightCaps.push({key: "enthalpy", text: captions.enthalpy, fill: "#9a9a9a"});
+    hxLayoutRightCaptions(rightCaps.map(function(c) { return c.text; }), height)
+        .forEach(function(l, j) {
+            unit.append("text")
+                    .attr("class","hx-caption hx-caption-"+rightCaps[j].key)
+                    .attr("x",l.x)
+                    .attr("y",13)
+                    .attr("text-anchor","end")
+                    .attr("fill",rightCaps[j].fill)
+                    .attr("font-size",l.fontSize)
+                    .text(l.text);
+        });
 
     // X-axis title centred below the bottom axis (absolute water content).
     if(xAxisTitle) {
         axisX.append("text")
+                .attr("class","hx-caption hx-caption-x-axis-title")
                 .attr("x",width/2)
                 .attr("y",32)
                 .attr("fill","black")
@@ -570,4 +586,73 @@ function drawHXCoordinates(container,Width,Height,margin,domainX,domainY,p,molli
                 .attr("stroke-width",4);
 
     }
+}
+
+
+// ---------------------------------------------------------------------------
+// Caption helpers (plain globals, also used by MollierChart and pyedautils).
+// ---------------------------------------------------------------------------
+
+// Default caption texts of drawHXCoordinates (English). Override any of them
+// with opts.captions = { temperature, rel_humidity, density, enthalpy,
+// x_axis, x_axis_title }; an empty string hides that caption.
+const HX_DEFAULT_CAPTIONS = {
+    temperature:  "Temperature ϑ [°C]",   // left axis (rotated)
+    rel_humidity: "rel. humidity φ [%]",  // right edge, top segment
+    density:      "Density ρ [kg/m³]",    // right edge, middle segment
+    enthalpy:     "Enthalpy [kJ/kg]",     // right edge, bottom segment
+    x_axis:       "x [g/kg]",             // unit caption right of the x axis
+    x_axis_title: ""                      // centred title below the x axis
+};
+
+// Estimated average glyph width of the caption font, in em. An estimate (not
+// getComputedTextLength) so the layout is the same in hidden/detached nodes.
+const HX_GLYPH_EM = 0.56;
+const HX_MIN_CAPTION_FONT = 8;
+
+// Merge opts.captions (and the older opts.xAxisTitle) over the defaults.
+function hxResolveCaptions(opts) {
+    opts = opts || {};
+    let c = Object.assign({}, HX_DEFAULT_CAPTIONS);
+    if (opts.xAxisTitle != null) c.x_axis_title = String(opts.xAxisTitle);
+    let user = opts.captions || {};
+    Object.keys(user).forEach(function(key) {
+        if (user[key] != null) c[key] = String(user[key]);
+    });
+    return c;
+}
+
+// Font size (px) that fits `text` into `room` px, clamped to [8, maxFont].
+// Text that would need less than 8 px is shortened with an ellipsis.
+function hxFitCaption(text, room, maxFont) {
+    maxFont = maxFont || 12;
+    let fit = function(len) { return room / (Math.max(len, 1) * HX_GLYPH_EM); };
+    if (fit(text.length) < HX_MIN_CAPTION_FONT) {
+        let max = Math.max(4, Math.floor(room / (HX_MIN_CAPTION_FONT * HX_GLYPH_EM)) - 1);
+        text = text.slice(0, max).replace(/\s+$/, "") + "…";
+    }
+    let fontSize = Math.max(HX_MIN_CAPTION_FONT, Math.min(maxFont, fit(text.length)));
+    return { text: text, fontSize: Math.round(fontSize * 100) / 100 };
+}
+
+// Layout of the rotated right-edge captions. `texts` are the visible captions
+// from top to bottom, `axisLength` the plot height in px. Each caption gets an
+// equal segment of the axis and ends flush with the top of its segment.
+// All captions share one font size (that of the longest one).
+// Returns [{text, x, fontSize}], x in the rotated frame (0 = middle of the
+// axis, positive = up, text-anchor "end").
+function hxLayoutRightCaptions(texts, axisLength, maxFont) {
+    let n = texts.length;
+    if (!n) return [];
+    let seg = axisLength / n;
+    let fits = texts.map(function(text) { return hxFitCaption(text, seg - 12, maxFont); });
+    let fontSize = Math.min.apply(null, fits.map(function(f) { return f.fontSize; }));
+    return fits.map(function(f, i) {
+        return { text: f.text, x: Math.round((axisLength / 2 - seg * i) * 10) / 10, fontSize: fontSize };
+    });
+}
+
+// Font size for the x-axis unit caption placed in the right margin.
+function hxFitXAxisCaption(text, marginRight, maxFont) {
+    return hxFitCaption(text, Math.max(10, marginRight - 14), maxFont);
 }

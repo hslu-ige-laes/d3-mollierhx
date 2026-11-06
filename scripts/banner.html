@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
+<!-- README banner (1280×320): same look as social-preview.html, without the diagram,
+     because the README shows the real diagram right below. Rendered by
+     scripts/render_branding.py into docs/banner.png. -->
+<style>
+html,body{margin:0;width:1280px;height:320px;overflow:hidden}
+body{background:radial-gradient(120% 220% at 0% 0%,#1f3756 0%,#101b29 55%,#0a121c 100%);font-family:Manrope,sans-serif;color:#eef3f8;
+  display:flex;align-items:center;gap:44px;padding:0 84px;box-sizing:border-box}
+.logo{width:168px;height:168px;flex:none;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+.text{display:flex;flex-direction:column;gap:14px;min-width:0}
+h1{margin:0;font-size:64px;font-weight:800;letter-spacing:-1.4px;line-height:1;white-space:nowrap}
+p{margin:0;font-size:24px;line-height:1.35;color:#b7c4d3;font-weight:500;max-width:880px}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.chip{font-size:16px;font-weight:700;padding:6px 13px;border-radius:999px;border:1.5px solid rgba(255,255,255,.18);color:#dfe8f1}
+.chip.g{border-color:#9acd32;color:#c9f26f}.chip.o{border-color:#f08a2c;color:#f6b06c}.chip.b{border-color:#63c1ff;color:#a9dcff}
+</style></head><body>
+<img class="logo" src="../docs/logo.svg" alt="">
+<div class="text"><h1>d3-mollierhx</h1><p>Mollier h,x diagram (psychrometric chart) built on D3.js,<br>with comfort zone and season-coloured measurements.</p><div class="chips"><span class="chip b">D3.js v7</span><span class="chip g">Comfort zone</span><span class="chip o">Warning bands</span><span class="chip">Classical &amp; Glück</span></div></div>
+</body></html>

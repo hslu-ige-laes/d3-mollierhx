@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest a new line type, overlay, option or improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe what you want to show or analyse in the diagram, and why.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could the library support it?
+      description: A function, an option, an example from pyedautils or another tool.

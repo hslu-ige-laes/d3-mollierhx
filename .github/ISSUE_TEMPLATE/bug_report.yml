@@ -1,0 +1,47 @@
+name: Bug report
+description: The diagram is drawn wrong, shows an error, or nothing at all.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting. The details below help to reproduce the problem.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you see instead? Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Minimal HTML / JavaScript
+      description: The smallest page that shows the problem (script tags, the calls to the library, a few data rows). Or say if it happens in example/demo.html.
+      render: html
+    validations:
+      required: true
+  - type: input
+    id: d3-version
+    attributes:
+      label: D3 version
+      placeholder: v5.16.0
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: d3-mollierhx commit or date of download
+      placeholder: dadf7f8, or 2026-11-06
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome 140 on Windows, Safari 19 on macOS, ...
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Browser console errors
+      description: Press F12 → Console and copy any red lines.
+      render: text
