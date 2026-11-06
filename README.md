@@ -23,7 +23,7 @@
 ## Overview
 The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to describe changes of state of humid air. In the present case it is used to show comfort states regarding temperature and humidity.
 
-<img alt="mollier hx diagram" src="img/mollierhx.png" width="100%">
+<img alt="mollier hx diagram" src="docs/screenshot.png" width="100%">
 
 - It is valid for a certain air pressure. The quantities temperature, humidity (absolute and relative), enthalpy and density can be read off directly.
 - The basic scale for the h,x-diagram is a temperature scale, which is applied vertically as y-axis.
