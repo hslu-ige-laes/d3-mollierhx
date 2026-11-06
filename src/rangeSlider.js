@@ -29,8 +29,8 @@ function createRangeSlider(Width,Height,container_id) {
 			domain: function(dom) { x.domain(dom); 
 									xivt = x.invert; xAxis.call(d3.axisBottom(x)); 
 									this.values = [...dom]; this.domval = [...dom]; 
-									leftinput.attr("value",slider.values[0]);
-									rightinput.attr("value",slider.values[1]); }, 
+									showValues();
+									}, 
 			domval: [],
 			width: function(w) { width = Math.max(w,50); 
 								 width_ = width-margin.right-margin.left;
@@ -114,6 +114,18 @@ function createRangeSlider(Width,Height,container_id) {
 		handleTextInput(event,this,1);
 	});
 	
+	// Text shown in the input fields: rounded to a precision that fits the domain
+	// (the brush gives values like 19.9990...), without trailing zeros.
+	function fmt(v) {
+		let span = Math.abs(x.domain()[1] - x.domain()[0]);
+		let digits = span <= 0.1 ? 4 : span <= 1 ? 3 : span <= 100 ? 1 : 0;
+		return String(Number(Number(v).toFixed(digits)));
+	}
+	function showValues() {
+		leftinput.property("value",fmt(slider.values[0]));
+		rightinput.property("value",fmt(slider.values[1]));
+	}
+	
 	function handleTextInput(event,thiselement,indiz) {
 		if(event.keyCode == 13) {
 			event.preventDefault();
@@ -136,8 +148,8 @@ function createRangeSlider(Width,Height,container_id) {
 		slider.values = [...event.selection];
 		slider.values[0] = xivt(slider.values[0]);
 		slider.values[1] = xivt(slider.values[1]);
-		leftinput.attr("value",slider.values[0]);
-		rightinput.attr("value",slider.values[1]);
+		showValues();
+		
 		if(changeEnabled) slider.onChange(slider.values[0],slider.values[1]);
 	}
 	function refreshValues_end(event) {
@@ -145,8 +157,8 @@ function createRangeSlider(Width,Height,container_id) {
 		slider.values = [...event.selection];
 		slider.values[0] = xivt(slider.values[0]);
 		slider.values[1] = xivt(slider.values[1]);
-		leftinput.attr("value",slider.values[0]);
-		rightinput.attr("value",slider.values[1]);
+		showValues();
+		
 		if(changeEnabled) slider.onEnd(slider.values[0],slider.values[1]);
 	}
 	
