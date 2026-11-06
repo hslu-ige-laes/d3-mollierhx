@@ -4,8 +4,9 @@
 
 <p align="center">
   <a href="https://hslu-ige-laes.github.io/d3-mollierhx/"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-GitHub%20Pages-41BDF5?style=flat-square"></a>
-  <a href="https://d3js.org/"><img alt="Built with D3.js" src="https://img.shields.io/badge/built%20with-D3.js-f9a03c?style=flat-square"></a>
+  <a href="https://d3js.org/"><img alt="Built with D3.js v7" src="https://img.shields.io/badge/D3.js-v7-f9a03c?style=flat-square"></a>
   <img alt="Plain JavaScript, no build step" src="https://img.shields.io/badge/no%20build%20step-plain%20JavaScript-9acd32?style=flat-square">
+  <a href="https://github.com/hslu-ige-laes/d3-mollierhx/discussions/categories/q-a"><img alt="Questions: GitHub Discussions" src="https://img.shields.io/badge/questions-Discussions-8957e5?style=flat-square"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
 </p>
 
@@ -24,19 +25,12 @@ The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to de
 
 <img alt="mollier hx diagram" src="img/mollierhx.png" width="100%">
 
-Try it in the browser: [live demo](https://hslu-ige-laes.github.io/d3-mollierhx/example/demo.html).
-
 - It is valid for a certain air pressure. The quantities temperature, humidity (absolute and relative), enthalpy and density can be read off directly.
 - The basic scale for the h,x-diagram is a temperature scale, which is applied vertically as y-axis.
 - The auxiliary lines drawn horizontally from left to right are the "isotherms", i.e. lines with constant air temperature. While the isotherm at 0 °C runs parallel to the horizontal axis, the isotherms at higher temperatures will increasingly rise to the right, due to the heat content of the increasing water content.
 - The x-axis represents the water content x resp. the absolute humidity of the air.
 - The comfort zone helps to indicate whether measured temperature/humidity values are within a comfortable range or not.
 - Measured values get integrated as scatter plot and are coloured according to the season (winter, spring, summer, fall).
-
-<hr>
-
-## Live demo
-Try it in the browser: [hslu-ige-laes.github.io/d3-mollierhx](https://hslu-ige-laes.github.io/d3-mollierhx/) (the same page as `example/demo.html`).
 
 <hr>
 
