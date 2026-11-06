@@ -15,6 +15,7 @@ const exportsList = [
   "HX_DEFAULT_CAPTIONS", "hxResolveCaptions", "hxFitCaption", "hxLayoutRightCaptions", "hxFitXAxisCaption",
   "HX_DEFAULT_TEXTS", "hxTexts", "hxFormat", "hxState", "hxStateLabel",
   "hxVentilationEffect", "hxVentilationNote", "hxClampPoint", "MOLLIER_CHART_DEFAULT_TEXTS",
+  "hxPlaceContourLabels", "hxDrawContourLabels",
 ];
 const code = '"use strict";\n' + src + "\n;({" + exportsList.join(",") + "});";
 const H = vm.runInNewContext(code, { console }, { filename: "bundle.js" });
@@ -120,6 +121,55 @@ test("chart texts have English defaults", () => {
   assert.strictEqual(H.MOLLIER_CHART_DEFAULT_TEXTS.freq_hours, "{n} h/year outside");
   assert.strictEqual(H.hxFormat(H.MOLLIER_CHART_DEFAULT_TEXTS.altitude, { alt: 450 }), "450 m a.s.l.");
   assert.strictEqual(H.hxTexts({ outdoor: "Aussenluft", room: null }).room, "Room");
+});
+
+// Nested rings (ellipses) whose tops lie close together, like the 200..1600 h
+// lines near the top of a dense point cloud.
+function ellipse(cx, cy, rx, ry, n) {
+  const pts = [];
+  for (let i = 0; i < (n || 72); i++) { const a = 2 * Math.PI * i / (n || 72); pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); }
+  return pts;
+}
+function overlaps(a, b, gap) {
+  return Math.abs(a.x - b.x) < (a.w + b.w) / 2 + gap && Math.abs(a.y - b.y) < (a.h + b.h) / 2 + gap;
+}
+
+test("contour labels: nested lines get separate, non-overlapping spots", () => {
+  const items = [200, 400, 800, 1600].map((v, i) => ({ label: v, points: ellipse(150, 60 + 4 * i, 60 - 12 * i, 40 - 8 * i) }));
+  const P = H.hxPlaceContourLabels(items, { width: 300, height: 200 });
+  assert.strictEqual(P.length, 4);
+  assert.strictEqual(P.map((l) => l.index).join(), "0,1,2,3");
+  for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++)
+    assert.ok(!overlaps(P[i], P[j], 4 - 1e-9), P[i].label + " / " + P[j].label);
+  P.forEach((l) => {
+    assert.ok(l.x - l.w / 2 >= 0 && l.x + l.w / 2 <= 300 && l.y - l.h / 2 >= 0 && l.y + l.h / 2 <= 200);
+    assert.strictEqual(l.w, String(l.label).length * 8 + 6);
+  });
+  // the smallest (innermost) line keeps its top point
+  assert.strictEqual([P[3].x, P[3].y].join(), "150,56");
+});
+
+test("contour labels: free label sits at the top, crowded one is dropped", () => {
+  const solo = H.hxPlaceContourLabels([{ label: 25, points: ellipse(100, 100, 50, 30) }], { width: 300, height: 300 });
+  assert.strictEqual(solo.length, 1);
+  assert.ok(Math.abs(solo[0].y - 70) < 1e-9 && Math.abs(solo[0].x - 100) < 1e-9);
+  // the second line has a single spot, taken by the first label
+  const P = H.hxPlaceContourLabels([
+    { label: 100, points: [[50, 50]] }, { label: 200, points: [[52, 50]] }], { width: 300, height: 300 });
+  assert.strictEqual(P.length, 1);
+  assert.strictEqual(P[0].label, 100);
+  // spots outside the axes and empty input are ignored
+  assert.strictEqual(H.hxPlaceContourLabels([{ label: 5, points: [[2, 2], [299, 150]] }], { width: 300, height: 300 }).length, 0);
+  assert.strictEqual(H.hxPlaceContourLabels([{ label: 5, points: [] }, null], { width: 10, height: 10 }).length, 0);
+  assert.strictEqual(H.hxPlaceContourLabels([], { width: 10, height: 10 }).length, 0);
+});
+
+test("contour labels: without a free spot the farthest one is used", () => {
+  const P = H.hxPlaceContourLabels([
+    { label: 1, points: [[100, 100]] },
+    { label: 2, points: [[100, 85], [100, 125], [140, 100]] }], { width: 300, height: 300, clearGap: 100 });
+  assert.strictEqual(P.length, 2);
+  assert.strictEqual([P[1].x, P[1].y].join(), "140,100");
 });
 
 console.log(n + " checks passed");

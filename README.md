@@ -138,6 +138,8 @@ The file also holds overlay helpers (plain globals). They draw into a `<g>` in p
 | `hxVentilationNote(effect, texts)` | the sentence for an effect |
 | `hxClampPoint(ctx, state)`, `hxDrawEdgeArrow(layer, ctx, pos, color, label)` | building blocks of the edge arrow |
 | `hxState(state, mollier, p)`, `hxStateLabel(state, texts)` | normalise a state; edge label like `6.8 °C · 89 %` |
+| `hxPlaceContourLabels(items, opts)` | one label per frequency line without overlaps: inside the axes, at least `minGap` (4 px) apart, the highest free spot of the line, else the one farthest from the other labels; dropped when the line has no free spot |
+| `hxDrawContourLabels(layer, contours, toScreen, opts)` | draws those labels (bold value on a white box); used by `MollierChart` and the demo |
 
 `hxDrawOutdoor` options: `color` (`#2563eb`), `ventilationLine` (`true`), `note` (`true`),
 `notePosition` (`[0, -8]`), `threshold` (`0.0003`), `texts`. Draw it (and the room point) into an
