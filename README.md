@@ -210,8 +210,18 @@ timestamp,humidity,temperature
 
 <hr>
 
-## Reading the diagram
-<!-- TODO: text follows -->
+## Reading the diagram, comfort and saving energy
+New to the h,x diagram? The pyedautils guide
+[The h,x diagram in five minutes](https://retomarek.github.io/pyedautils/guides/mollier_hx.html)
+explains it step by step, with worked examples:
+
+- [Reading the diagram correctly](https://retomarek.github.io/pyedautils/guides/mollier_hx.html#hx-reading-the-diagram):
+  relative humidity vs. water content, why heating and cooling move the point vertically, the effect of altitude, and
+  [dew point and mould at cold surfaces](https://retomarek.github.io/pyedautils/guides/mollier_hx.html#hx-dew-point).
+- [Comfort](https://retomarek.github.io/pyedautils/guides/mollier_hx.html#hx-comfort): what the comfort zone and the warning bands mean, and why temperature and humidity belong together.
+- [Saving energy](https://retomarek.github.io/pyedautils/guides/mollier_hx.html#hx-saving-energy): heating less, short and intensive airing in winter, not over-humidifying, airing cellars and night cooling in summer.
+
+Background: [Mollier diagram](https://en.wikipedia.org/wiki/Psychrometrics#Mollier_diagram) on Wikipedia.
 
 <hr>
 
