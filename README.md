@@ -225,22 +225,18 @@ Background: [Mollier diagram](https://en.wikipedia.org/wiki/Psychrometrics#Molli
 
 <hr>
 
-## Related implementations
-### R Shiny
-See [https://hslu-ige-laes.github.io/lcm/docs/modules/roomTempHum](https://hslu-ige-laes.github.io/lcm/docs/modules/roomTempHum)
-
-### Python (pyedautils)
-A Python port of this diagram (bundling these D3 sources) is available in the
-**pyedautils** package: [https://github.com/retomarek/pyedautils](https://github.com/retomarek/pyedautils)
-(`pip install pyedautils`). It renders the diagram from a pandas DataFrame via
-`pyedautils.plots.plot_mollier_hx`, and adds comfort-zone overlays, warning
-bands, season-coloured scatter and altitude/pressure annotation.
+## Related projects
+- [pyedautils](https://github.com/retomarek/pyedautils): Python Energy Data Analysis Utilities, with the h,x diagram (`plot_mollier_hx`), the comfort compass (`plot_comfort_compass`) and [guides on reading them](https://retomarek.github.io/pyedautils/guides/) (`pip install pyedautils`).
+- [Mollier hx Card](https://github.com/retomarek/mollier-hx-card): the h,x diagram as a Home Assistant dashboard card, with outside air and ventilation line.
+- [Comfort Compass Card](https://github.com/retomarek/comfort-compass-card): the comfort compass as a Home Assistant dashboard card: how many days were too warm, too humid, too dry or too cold.
+- [R Shiny implementation](https://hslu-ige-laes.github.io/lcm/docs/modules/roomTempHum) (module roomTempHum).
 
 <hr>
 
 ## Questions and feedback
 - **Questions or ideas?** Ask in [Q&A](https://github.com/hslu-ige-laes/d3-mollierhx/discussions/categories/q-a).
 - **Found a bug or want a feature?** Open an [issue](https://github.com/hslu-ige-laes/d3-mollierhx/issues/new/choose).
+- **Find it useful?** A ⭐ on GitHub helps others find it.
 
 <hr>
 
