@@ -155,6 +155,18 @@
     .band-row:last-child { margin-bottom: 0; }
     .band-row input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
     .band-row .tag { width: 22px; height: 0; border-top: 2px dashed; display: inline-block; }
+    .state-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 9px; }
+    .state-row input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+    .state-row .name { min-width: 92px; }
+    .state-row input[type="text"] {
+        width: 52px; font-family: var(--mono); font-size: 12px; color: var(--ink);
+        border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px;
+        text-align: center; background: #f8fafc;
+    }
+    #vent_note { font-size: 13px; font-weight: 600; min-height: 1.2em; }
+    #vent_note.dries { color: #b45309; }
+    #vent_note.humidifies { color: #2563eb; }
+    #vent_note.neutral { color: #64748b; }
     .band-row input[type="text"] {
         width: 46px;
         font-family: var(--mono);
@@ -285,6 +297,34 @@
             </div>
 
             <div class="card">
+                <div class="title">Room &amp; outside air</div>
+                <div class="state-row">
+                    <input type="checkbox" id="show_room" checked onchange="drawPoints()">
+                    <span class="name">room</span>
+                    <input type="text" autocomplete="off" id="room_t" value="22.5" onchange="drawPoints()">&nbsp;°C
+                    <input type="text" autocomplete="off" id="room_rh" value="48" onchange="drawPoints()">&nbsp;%
+                </div>
+                <div class="state-row">
+                    <input type="checkbox" id="show_out" checked onchange="drawPoints()">
+                    <span class="name" style="color:#2563eb">outside air</span>
+                    <input type="text" autocomplete="off" id="out_t" value="6.8" onchange="drawPoints()">&nbsp;°C
+                    <input type="text" autocomplete="off" id="out_rh" value="89" onchange="drawPoints()">&nbsp;%
+                </div>
+                <div class="checks" style="margin-bottom:8px;">
+                    <label><input type="checkbox" id="vent_line" checked onchange="drawPoints()"> ventilation line</label>
+                </div>
+                <div id="vent_note"></div>
+            </div>
+
+            <div class="card">
+                <div class="title">Captions</div>
+                <select id="caption_lang" onchange="draw_background()">
+                    <option value="en" selected>English (default)</option>
+                    <option value="de">Deutsch (via opts.captions / texts)</option>
+                </select>
+            </div>
+
+            <div class="card">
                 <div class="title">Coordinate lines</div>
                 <div class="checks">
                     <label><input type="checkbox" id="show_t"   checked onchange="draw_background()"> temperature</label>
@@ -307,7 +347,7 @@
                 </div>
                 <div class="inline-field">
                     <label>diagram height <span class="unit">[px]</span></label>
-                    <input type="text" autocomplete="off" id="height_input" value="1000" onchange="handle_height()">
+                    <input type="text" autocomplete="off" id="height_input" value="700" onchange="handle_height()">
                 </div>
             </div>
 
@@ -354,6 +394,8 @@
                     <div class="item"><span class="swatch" style="background:#9ACD32;opacity:0.6;border:1px solid #9ACD32;"></span> Comfort zone</div>
                     <div class="item" id="leg_band1" style="color:#E67E22;"><span class="dash"></span> <span style="color:var(--ink);" id="leg_band1_txt">±&nbsp;1&nbsp;K / 5&nbsp;%</span></div>
                     <div class="item" id="leg_band2" style="color:#C0392B;"><span class="dash"></span> <span style="color:var(--ink);" id="leg_band2_txt">±&nbsp;2.5&nbsp;K / 10&nbsp;%</span></div>
+                    <div class="item"><span class="dot" style="background:black;"></span> Room (now)</div>
+                    <div class="item"><span class="dot" style="background:white;border:2px solid #2563eb;width:9px;height:9px;"></span> Outside air, dashed: ventilation line</div>
                     <div class="seasons">
                         <div class="item"><span class="dot" style="background:lightblue;"></span> Winter</div>
                         <div class="item"><span class="dot" style="background:lightgreen;"></span> Spring</div>
@@ -364,7 +406,7 @@
             </div>
 
             <div class="card">
-                <div class="title">Measured data (CSV)</div>
+                <div class="title">Measured data (CSV, default: Zürich-Kloten hourly)</div>
                 <input type="file" id="files" name="file">
                 <p id="loading_state"></p>
             </div>
@@ -396,7 +438,12 @@
             the other follows automatically (the value is shown top-right of the chart). To plot your own data, upload
             a <code>.csv</code> with three columns: time (ISO 8601), humidity [%], temperature [°C]. Meteonorm hourly
             <code>.dat</code> files (year, month, day, hour, temperature, rel. humidity) are recognised automatically.
-            Points are coloured by season.
+            Points are coloured by season. The example data set (<code>zuerich-kloten.csv</code>, hourly outside
+            air of one year) is loaded on start. The black dot is the current room state, the hollow blue circle the
+            outside air; the dashed line between them is the ventilation (mixing) line, and the note above the
+            diagram says whether airing dries the room or adds moisture (outside air drier or moister by more than
+            0.3&nbsp;g/kg). A point outside the axes becomes an arrow on the edge with its value — try an outside
+            temperature of &minus;25&nbsp;°C.
         </p>
     </div>
 

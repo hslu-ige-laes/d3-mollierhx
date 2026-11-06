@@ -9,7 +9,7 @@ document.getElementById("altitude_input").value = 0;
 let convention = "classical";
 let mollier = createMollier(convention);
 
-let Height = 1000;
+let Height = 700;
 
 let dimensioninfo = document.getElementById("test").getBoundingClientRect();
 // this svg is created in order to measure the right width of the #test-div
@@ -33,15 +33,10 @@ let canvas = d3.select("#test").append("svg")
 let background = canvas.append("g")
                 .attr("id","theplot");
 
-let clip = canvas.append("defs").append("svg:clipPath")
-                .attr("id", "clip")
-                .append("svg:rect")
-                .attr("width", width )
-                .attr("height", height );
-
+// Clip path: data, comfort zone and bands are not drawn into the margins.
 let plot = canvas.append("g")
                 .attr("transform","translate("+margin.left+","+margin.top+")")
-                .attr("clip-path","url(#clip)");
+                .attr("clip-path",hxAddClipPath(canvas, "clip", width, height));
 
 let comfortZone = plot.append("g");
 let bandOrange = plot.append("g");   // dashed ±1 K / ±5 % warning band
@@ -52,6 +47,11 @@ let circlesHandle = plot.append("g");
 let meanLine = plot.append("g");     // mean-value trajectory
 let freqHover = plot.append("g");    // invisible hit areas for contour hover (above brush)
 let freqLabels = plot.append("g").style("pointer-events","none");   // contour value labels (topmost)
+// Unclipped layer for the room and outside points: points outside the axes
+// become edge arrows, the ventilation note sits just above the axes.
+let pointsLayer = canvas.append("g")
+                .attr("class","points-layer")
+                .attr("transform","translate("+margin.left+","+margin.top+")");
 
 
 // Define the (x,y)-coordinate system:
@@ -222,6 +222,7 @@ function drawBand(group, rT, rPhi, rX, color) {
 
 // Draw the hx-diagram-background with the coordinate-lines
 draw_background();
+loadExampleData();
 
 // Recompute the layout (called on window-resize and on height changes).
 function relayout() {
@@ -240,7 +241,7 @@ function relayout() {
     height = Height - margin.top - margin.bottom;
 
     canvas.attr("width",Width).attr("height",Height);
-    clip.attr("width",width).attr("height",height);
+    hxAddClipPath(canvas, "clip", width, height);
     x.range([0,width]);
     y.range([height,0]);
     Brush.extent([[0,0],[width,height]]);
@@ -276,8 +277,59 @@ function getLineOpts() {
         showRelHumidity: chk("show_phi"),
         showEnthalpy:    chk("show_h"),
         showAbsHumidity: chk("show_x"),
-        xAxisTitle:      "absolute water content x [g/kg]"
+        xAxisTitle:      isGerman() ? "Wassergehalt x [g/kg]" : "absolute water content x [g/kg]",
+        captions:        isGerman() ? CAPTIONS_DE : undefined
     };
+}
+
+// Captions and texts are plain options: any language can be passed in.
+function isGerman() {
+    let el = document.getElementById("caption_lang");
+    return !!el && el.value === "de";
+}
+const CAPTIONS_DE = {
+    temperature: "Temperatur ϑ [°C]", rel_humidity: "rel. Feuchte φ [%]",
+    density: "Dichte ρ [kg/m³]", enthalpy: "Enthalpie h [kJ/kg]", x_axis: "x [g/kg]"
+};
+const TEXTS_DE = {
+    outdoor: "Aussenluft", room: "Raum",
+    ventilation_dries: "Lüften trocknet", ventilation_humidifies: "Lüften befeuchtet",
+    ventilation_neutral: "Lüften: keine Änderung"
+};
+
+// Room point (black) and outside air (hollow blue) with the ventilation line.
+function drawPoints() {
+    pointsLayer.selectAll("*").remove();
+    let num = function(id) { let v = parseFloat(document.getElementById(id).value); return isFinite(v) ? v : null; };
+    let on = function(id) { let e = document.getElementById(id); return !!e && e.checked; };
+    let ctx = { x: x, y: y, width: width, height: height, mollier: mollier, pressure: Number(p) };
+    let texts = isGerman() ? TEXTS_DE : {};
+    let room = on("show_room") ? { t: num("room_t"), rh: num("room_rh") } : null;
+    let outdoor = on("show_out") ? { t: num("out_t"), rh: num("out_rh") } : null;
+    let res = hxDrawOutdoor(pointsLayer, ctx, outdoor, room,
+                            { ventilationLine: on("vent_line"), texts: texts });
+    if(room) hxDrawStatePoint(pointsLayer, ctx, room, { color: "black", className: "room-point", texts: texts });
+    let note = document.getElementById("vent_note");
+    if(note) {
+        note.textContent = res.note || "";
+        note.className = res.effect || "";
+    }
+}
+
+// Load the example data set (relative URL, works on GitHub Pages and with any
+// static server; file:// pages cannot fetch, there use the file input).
+function loadExampleData() {
+    if(location.protocol === "file:") return;
+    let state = document.getElementById("loading_state");
+    if(state) state.textContent = " - loading zuerich-kloten.csv - ";
+    fetch("zuerich-kloten.csv")
+        .then(function(r) { if(!r.ok) throw new Error(r.status); return r.text(); })
+        .then(function(txt) {
+            CurrentData = formatData(txt);
+            if(state) state.textContent = " - example data: zuerich-kloten.csv - ";
+            HandleData();
+        })
+        .catch(function() { if(state) state.textContent = ""; });
 }
 
 function draw_background() {
@@ -288,6 +340,7 @@ function draw_background() {
     drawCircles();
     drawDerived();
     refresh_comfort();
+    drawPoints();
 }
 
 function handle_convention() {
@@ -343,6 +396,7 @@ function HandleData() {
     
     let ColorMap = ["lightblue","lightgreen","orange","brown"];
     
+    circlesHandle.selectAll("circle").remove();
     circlesHandle.selectAll("circle")
             .data(dataXY)
             .enter().append("circle")
