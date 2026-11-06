@@ -678,25 +678,14 @@ function drawFreqLines() {
         .on("mouseout", function() { d3.select("#freqtip").remove(); });
 
     // Value labels (topmost group, above the contours and the mean line) with a
-    // solid white background box so the numbers stay readable everywhere.
-    let labelG = freqLabels.append("g")
-        .attr("font-family","helvetica").attr("font-size",13).attr("font-weight","bold");
-    contours.forEach(function(d) {
-        let pt = topPointOfContour(d.c);   // [gx, gy] in grid units
-        if(!pt) return;
-        let s = gridToScreen(pt[0], pt[1]);
-        let g = labelG.append("g").attr("transform","translate("+s[0]+","+s[1]+")");
-        let txt = g.append("text")
-            .attr("text-anchor","middle").attr("dy","0.32em")
-            .attr("fill","#111")
-            .text(d.label);
-        let bb = txt.node().getBBox();
-        g.insert("rect","text")
-            .attr("x", bb.x-3).attr("y", bb.y-1)
-            .attr("width", bb.width+6).attr("height", bb.height+2)
-            .attr("rx",2).attr("fill","white").attr("opacity",0.92)
-            .attr("stroke","#ddd").attr("stroke-width",0.5);
-    });
+    // solid white background box so the numbers stay readable everywhere. They
+    // sit on visible (unsaturated) contour points and never overlap; a label
+    // without a free spot is left out (hover the line to read its value).
+    hxDrawContourLabels(freqLabels, contours, function(gx, gy) {
+        let xv = FREQ_XMIN + gx*FREQ_DX, Tv = FREQ_TMIN + gy*FREQ_DT;
+        if(xv > mollier.get_x_y(Tv, 1, p).x) return null;   // beyond saturation
+        return gridToScreen(gx, gy);
+    }, { width: width, height: height });
 }
 
 // Floating tooltip shown while hovering a frequency contour line.
@@ -910,23 +899,6 @@ function chaikin(ring, iterations) {
     pts.push([pts[0][0], pts[0][1]]);   // re-close
     return pts;
 }
-
-// Warmest (largest grid-y) vertex of a contour, for label placement. At the
-// warm end the nested cumulative lines fan out, so the labels don't pile up
-// (unlike the cold tip where every line converges).
-function topPointOfContour(c) {
-    let best = null;
-    c.coordinates.forEach(function(poly) {
-        poly.forEach(function(ring) {
-            ring.forEach(function(pt) {
-                if(best === null || pt[1] > best[1]) best = pt;
-            });
-        });
-    });
-    return best;
-}
-
-
 
 // handle mousover-event on circles
 let currentcolor = null;

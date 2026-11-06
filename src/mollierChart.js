@@ -103,15 +103,6 @@ function smoothRing(ring, iters) {
   return pts;
 }
 
-// Warmest (largest grid-y) vertex of a contour, for label placement.
-function topPointOfContour(c) {
-  let best = null;
-  c.coordinates.forEach(function (poly) {
-    poly.forEach(function (ring) { ring.forEach(function (pt) { if (best === null || pt[1] > best[1]) best = pt; }); });
-  });
-  return best;
-}
-
 // Month -> season index (0 Winter, 1 Spring, 2 Summer, 3 Fall).
 function seasonIndex(date) {
   let m = date.getMonth();
@@ -715,16 +706,12 @@ class MollierChart {
       .style("pointer-events", "stroke").style("cursor", "crosshair")
       .on("mouseover mousemove", function (event, d) { self._showFreqTip(d.label, useDays, event); })
       .on("mouseout", function () { self._hideTip(); });
-    let labelG = this.freqLabels.append("g").attr("font-family", "helvetica").attr("font-size", 13).attr("font-weight", "bold");
-    contours.forEach(function (d) {
-      let pt = topPointOfContour(d.c); if (!pt) return;
-      let s = gridToScreen(pt[0], pt[1]);
-      let g = labelG.append("g").attr("transform", "translate(" + s[0] + "," + s[1] + ")");
-      let txt = g.append("text").attr("text-anchor", "middle").attr("dy", "0.32em").attr("fill", "#111").text(d.label);
-      let bb = txt.node().getBBox();
-      g.insert("rect", "text").attr("x", bb.x - 3).attr("y", bb.y - 1).attr("width", bb.width + 6).attr("height", bb.height + 2)
-        .attr("rx", 2).attr("fill", "white").attr("opacity", 0.92).attr("stroke", "#ddd").attr("stroke-width", 0.5);
-    });
+    // Labels on visible (unsaturated) contour points, without overlaps.
+    hxDrawContourLabels(this.freqLabels, contours, function (gx, gy) {
+      let xv = FREQ_XMIN + gx * FREQ_DX, Tv = FREQ_TMIN + gy * FREQ_DT;
+      if (xv > self.mollier.get_x_y(Tv, 1, self.pressure).x) return null;
+      return gridToScreen(gx, gy);
+    }, { width: this.width, height: this.height });
   }
 
   // --- reposition / redraw helpers ---------------------------------------

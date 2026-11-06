@@ -384,3 +384,94 @@ function hxDrawOutdoor(layer, ctx, outdoor, room, opts) {
 	}
 	return result;
 }
+
+// ===========================================================================
+// Frequency-line labels: collision-free placement (pure) and drawing.
+// ===========================================================================
+
+// Place one label per contour so that no two labels overlap.
+// items: [{label, points: [[px, py], ...]}] with the candidate spots of each
+//        contour in plot coordinates (px from the left, py from the top).
+// opts:  width, height (size of the axes in px, required), minGap (4 px, the
+//        smallest allowed gap between two label boxes), clearGap (3 * minGap,
+//        a gap that counts as "free"), charWidth (8 px per character),
+//        boxHeight (17 px), padX (3 px).
+// Each label box must lie inside the axes and keep at least minGap from the
+// boxes placed before it. Of those spots it takes the highest one that is
+// free (>= clearGap), otherwise the one farthest from the other labels. A
+// label without such a spot is dropped. The smallest contours are placed
+// first, as they offer the fewest spots.
+// Returns [{index, label, x, y, w, h}] (x, y = centre of the box), sorted by
+// index.
+function hxPlaceContourLabels(items, opts) {
+	let o = Object.assign({ minGap: 4, charWidth: 8, boxHeight: 17, padX: 3 }, opts || {});
+	let clearGap = o.clearGap != null ? o.clearGap : 3 * o.minGap;
+	let order = [];
+	(items || []).forEach(function(it, i) {
+		let pts = (it && it.points) || [];
+		if (!pts.length) return;
+		let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+		pts.forEach(function(q) {
+			x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]);
+			y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]);
+		});
+		order.push({ i: i, size: (x1 - x0) + (y1 - y0) });
+	});
+	order.sort(function(a, b) { return a.size - b.size || a.i - b.i; });
+	function gap(a, b) {
+		let dx = Math.max(0, Math.abs(a.x - b.x) - (a.w + b.w) / 2);
+		let dy = Math.max(0, Math.abs(a.y - b.y) - (a.h + b.h) / 2);
+		return Math.sqrt(dx * dx + dy * dy);
+	}
+	let placed = [];
+	order.forEach(function(e) {
+		let it = items[e.i], text = String(it.label);
+		let w = text.length * o.charWidth + 2 * o.padX, h = o.boxHeight;
+		let best = null, bestGap = -1, top = null;
+		it.points.forEach(function(q) {
+			let box = { x: q[0], y: q[1], w: w, h: h };
+			if (!(box.x - w / 2 >= 0 && box.x + w / 2 <= o.width && box.y - h / 2 >= 0 && box.y + h / 2 <= o.height)) return;
+			let g = Infinity;
+			placed.forEach(function(p) { g = Math.min(g, gap(box, p)); });
+			if (g < o.minGap) return;
+			if (g >= clearGap && (top === null || box.y < top.y)) top = box;
+			if (g > bestGap) { bestGap = g; best = box; }
+		});
+		let pick = top || best;
+		if (pick) placed.push({ index: e.i, label: it.label, x: pick.x, y: pick.y, w: w, h: h });
+	});
+	return placed.sort(function(a, b) { return a.index - b.index; });
+}
+
+// Draw the value labels of the frequency contours into `layer` (a <g> in plot
+// coordinates): bold numbers on a white box, placed by hxPlaceContourLabels.
+// contours: [{label, c: {coordinates: [[ring, ...], ...]}}] in grid space;
+// toScreen(gx, gy) -> [px, py], or null for a vertex that is not visible
+// (e.g. beyond the saturation curve); opts as hxPlaceContourLabels.
+// Returns the placed labels.
+function hxDrawContourLabels(layer, contours, toScreen, opts) {
+	let items = contours.map(function(d) {
+		let pts = [];
+		d.c.coordinates.forEach(function(poly) {
+			poly.forEach(function(ring) {
+				ring.forEach(function(q) { let s = toScreen(q[0], q[1]); if (s) pts.push(s); });
+			});
+		});
+		return { label: d.label, points: pts };
+	});
+	let placed = hxPlaceContourLabels(items, opts);
+	let labelG = layer.append("g")
+		.attr("font-family", "helvetica").attr("font-size", 13).attr("font-weight", "bold");
+	placed.forEach(function(l) {
+		let g = labelG.append("g").attr("class", "hx-freq-label")
+			.attr("transform", "translate(" + l.x + "," + l.y + ")");
+		let txt = g.append("text").attr("text-anchor", "middle").attr("dy", "0.32em")
+			.attr("fill", "#111").text(l.label);
+		let bb = txt.node().getBBox();
+		g.insert("rect", "text").attr("x", bb.x - 3).attr("y", bb.y - 1)
+			.attr("width", bb.width + 6).attr("height", bb.height + 2)
+			.attr("rx", 2).attr("fill", "white").attr("opacity", 0.92)
+			.attr("stroke", "#ddd").attr("stroke-width", 0.5);
+	});
+	return placed;
+}
