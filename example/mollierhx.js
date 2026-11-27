@@ -12,6 +12,11 @@ document.getElementById("altitude_input").value = altitude0;
 let convention = "classical";
 let mollier = createMollier(convention);
 
+// Chart layout: 'mollier' (default) or 'psychrometric' (ASHRAE), and the
+// units of ticks, labels and tooltips: 'si' (default) or 'ip'.
+let orientation = "mollier";
+let units = "si";
+
 // Default height: fit the window, so the sticky diagram stays fully visible
 // while the controls scroll (the height field still allows any value).
 function defaultHeight() {
@@ -72,8 +77,9 @@ let domainY0 = [-20,50];
 let domainX = domainX0;
 let domainY = domainY0;
 
-let x = d3.scaleLinear().range([0,width]).domain(domainX);
-let y = d3.scaleLinear().range([height,0]).domain(domainY);
+// Screen mapping (hxProjection): proj.project(x, y) -> [px, py].
+let proj = hxProjection(width, height, domainX, domainY, orientation);
+function P(d) { return proj.project(d.x, d.y); }
 
 // Create a brush for zooming
 let Brush = d3.brush()
@@ -91,8 +97,10 @@ function handleBrush(event) {
         idle = true;
         gBrush.call(Brush.move,null);
 
-        domainX = [x.invert(selection[0][0]),x.invert(selection[1][0])];
-        domainY = [y.invert(selection[1][1]),y.invert(selection[0][1])];
+        let a = proj.invert(selection[0][0],selection[0][1]);
+        let b = proj.invert(selection[1][0],selection[1][1]);
+        domainX = [Math.min(a[0],b[0]),Math.max(a[0],b[0])];
+        domainY = [Math.min(a[1],b[1]),Math.max(a[1],b[1])];
         refreshAxis(domainX,domainY);
         sliderX.move([domainX[0]*1000,domainX[1]*1000],true);
         sliderY.move(domainY,true);
@@ -112,8 +120,7 @@ function handleBrush(event) {
 }
 
 function refreshAxis(domainX,domainY) {
-    x.domain(domainX);
-    y.domain(domainY);
+    proj = hxProjection(width, height, domainX, domainY, orientation);
 }
 
 let width_s = d3.select("#rangeX").node().offsetWidth;
@@ -157,10 +164,8 @@ sliderXX.onChange = function(a,b) {
 }
 
 
-// Line-constructor for the comfort-path
-let line = d3.line()
-            .x(function(d) { return x(d.x); })
-            .y(function(d) { return y(d.y); });
+// Line-constructor for the comfort-path (through the current projection)
+function line(d) { return proj.line(d); }
 
 // Draw comfort zone
 let rangeT =   [20,26];         sliderT.move(rangeT,true);  // update slider-values
@@ -253,8 +258,7 @@ function relayout() {
 
     canvas.attr("width",Width).attr("height",Height);
     hxAddClipPath(canvas, "clip", width, height);
-    x.range([0,width]);
-    y.range([height,0]);
+    proj = hxProjection(width, height, domainX, domainY, orientation);
     Brush.extent([[0,0],[width,height]]);
     gBrush.call(Brush);
 
@@ -288,9 +292,20 @@ function getLineOpts() {
         showRelHumidity: chk("show_phi"),
         showEnthalpy:    chk("show_h"),
         showAbsHumidity: chk("show_x"),
-        xAxisTitle:      isGerman() ? "Wassergehalt x [g/kg]" : "absolute water content x [g/kg]",
-        captions:        isGerman() ? CAPTIONS_DE : undefined
+        xAxisTitle:      units === "ip" ? (isGerman() ? "Wassergehalt W [gr/lb]" : "humidity ratio W [gr/lb]")
+                                        : (isGerman() ? "Wassergehalt x [g/kg]" : "absolute water content x [g/kg]"),
+        captions:        isGerman() ? (units === "ip" ? CAPTIONS_DE_IP : CAPTIONS_DE) : undefined,
+        orientation:     orientation,
+        units:           units
     };
+}
+
+// Chart layout and units (selectors in demo.html).
+function handle_layout() {
+    orientation = document.getElementById("orientation_select").value;
+    units = document.getElementById("units_select").value;
+    refreshAxis(domainX, domainY);
+    draw_background();
 }
 
 // Captions and texts are plain options: any language can be passed in.
@@ -301,6 +316,10 @@ function isGerman() {
 const CAPTIONS_DE = {
     temperature: "Temperatur ϑ [°C]", rel_humidity: "rel. Feuchte φ [%]",
     density: "Dichte ρ [kg/m³]", enthalpy: "Enthalpie h [kJ/kg]", x_axis: "x [g/kg]"
+};
+const CAPTIONS_DE_IP = {
+    temperature: "Trockentemperatur [°F]", rel_humidity: "rel. Feuchte φ [%]",
+    density: "Dichte [lb/ft³]", enthalpy: "Enthalpie [Btu/lb]", x_axis: "W [gr/lb]"
 };
 const TEXTS_DE = {
     outdoor: "Aussenluft", room: "Raum",
@@ -313,7 +332,8 @@ function drawPoints() {
     pointsLayer.selectAll("*").remove();
     let num = function(id) { let v = parseFloat(document.getElementById(id).value); return isFinite(v) ? v : null; };
     let on = function(id) { let e = document.getElementById(id); return !!e && e.checked; };
-    let ctx = { x: x, y: y, width: width, height: height, mollier: mollier, pressure: Number(p) };
+    let ctx = { x: proj.xScale, y: proj.yScale, width: width, height: height, mollier: mollier, pressure: Number(p),
+                project: proj.project, units: units };
     let texts = isGerman() ? TEXTS_DE : {};
     let room = on("show_room") ? { t: num("room_t"), rh: num("room_rh") } : null;
     let outdoor = on("show_out") ? { t: num("out_t"), rh: num("out_rh") } : null;
@@ -366,16 +386,17 @@ function handle_convention() {
 function drawAltitudePressure() {
     let pa = Number(p);
     let altitude = (1 - Math.pow(pa/101325, 1/5.25588)) / 2.25577e-5;
+    let ip = units === "ip";
     let info = d3.select("#hx_mollier_diagram").append("g")
         .style("font-family", "Tahoma, Geneva, sans-serif");
     info.append("text")
         .attr("x", margin.left + width).attr("y", margin.top - 22)
         .attr("text-anchor", "end").attr("fill", "#4d4d4d").attr("font-size", 12)
-        .text(altitude.toFixed(0) + " m a.s.l.");
+        .text(ip ? HX_UNITS.mToFt(altitude).toFixed(0) + " ft" : altitude.toFixed(0) + " m a.s.l.");
     info.append("text")
         .attr("x", margin.left + width).attr("y", margin.top - 8)
         .attr("text-anchor", "end").attr("fill", "#4d4d4d").attr("font-size", 12)
-        .text((pa/100).toFixed(0) + " hPa");
+        .text(ip ? HX_UNITS.paToInhg(pa).toFixed(2) + " inHg" : (pa/100).toFixed(0) + " hPa");
 }
 
 function handle_p() {
@@ -421,8 +442,8 @@ function HandleData() {
     circlesHandle.selectAll("circle")
             .data(dataXY)
             .enter().append("circle")
-                .attr("cx",function(d) { return x(d.x); })
-                .attr("cy",function(d) { return y(d.y); })
+                .attr("cx",function(d) { return P(d)[0]; })
+                .attr("cy",function(d) { return P(d)[1]; })
                 .attr("r" ,radius)
                 .attr("fill",function(d) { return ColorMap[Math.floor(d.z/3)]; })
                 .attr("shape-rendering","optimizeSpeed")
@@ -454,8 +475,8 @@ function calcData() {
 
 function drawCircles() {
     circlesHandle.selectAll("circle").data(dataXY)
-                .attr("cx",function(d) { return x(d.x); })
-                .attr("cy",function(d) { return y(d.y); });
+                .attr("cx",function(d) { return P(d)[0]; })
+                .attr("cy",function(d) { return P(d)[1]; });
 }
 
 // Toggle helper for the data-display checkboxes.
@@ -632,7 +653,7 @@ function drawFreqLines() {
         let xv = FREQ_XMIN + gx*FREQ_DX;          // abs. humidity [kg/kg]
         let Tv = FREQ_TMIN + gy*FREQ_DT;          // temperature [degC]
         let yv = mollier.get_x_y_tx(Tv, xv, p).y; // tilted y-coordinate
-        return [x(xv), y(yv)];
+        return proj.project(xv, yv);
     }
     // Draw each contour ring as a closed B-spline through its projected vertices.
     // The marching-squares ring is an axis-aligned staircase on the coarse grid;
@@ -707,20 +728,22 @@ function showFreqTip(value, event) {
 }
 
 // Build/refresh a clip path = the unsaturated region (above-left of the
-// dew-point curve). Used to cut the frequency contours along the smooth
-// saturation line. Coordinates are in plot-local space (userSpaceOnUse).
+// dew-point curve; below-right in the psychrometric layout). Used to cut the
+// frequency contours along the smooth saturation line. Coordinates are in
+// plot-local space (userSpaceOnUse).
 function updateSaturationClip() {
     let sat = [];
     let t0 = domainY[0]-3, t1 = domainY[1]+3, ns = 120;
     for(let i=0;i<=ns;i++) {
         let t = t0 + (t1-t0)*i/ns;
         let s = mollier.get_x_y(t, 1, p);   // saturation point (phi = 1)
-        sat.push([x(s.x), y(s.y)]);
+        sat.push(proj.project(s.x, s.y));
     }
     let pad = Math.max(width, height) + 200;
+    let dryWarm = orientation === "psychrometric" ? [width+pad, height+pad] : [-pad, -pad];
     let pts = [[-pad, height+pad]]
         .concat(sat)                                  // dew-point curve, cold -> warm
-        .concat([[width+pad, -pad], [-pad, -pad]]);   // wrap the upper-left region
+        .concat([[width+pad, -pad], dryWarm]);        // wrap the dry (unsaturated) side
     let cp = canvas.select("#freqSatClip");
     if(cp.empty()) cp = canvas.append("clipPath").attr("id","freqSatClip");
     cp.selectAll("polygon").remove();
@@ -762,16 +785,16 @@ function drawMeanLine() {
         return out;
     }
 
-    let lineGen = d3.line().x(function(d){ return x(d.x); }).y(function(d){ return y(d.y); })
+    let lineGen = d3.line().x(function(d){ return P(d)[0]; }).y(function(d){ return P(d)[1]; })
                     .curve(d3.curveCatmullRom);
 
     function drawCurve(pts, color, mainChar, dyLabel) {
         if(pts.length < 2) return;
         meanLine.append("path").datum(pts).attr("d", lineGen)
             .attr("fill","none").attr("stroke",color).attr("stroke-width",2.5);
-        let last = pts[pts.length-1];
+        let last = P(pts[pts.length-1]);
         let t = meanLine.append("text")
-            .attr("x", x(last.x)+7).attr("y", y(last.y)+dyLabel)
+            .attr("x", last[0]+7).attr("y", last[1]+dyLabel)
             .attr("font-family","helvetica").attr("font-size",15).attr("font-style","italic")
             .attr("fill",color).attr("stroke","white").attr("stroke-width",3).attr("paint-order","stroke");
         t.append("tspan").text(mainChar);
@@ -921,28 +944,31 @@ function handlemouseover(event, d) {
     let hh   = mollier.enthalpy(X, Y);
     let t_dp = mollier.temperature_p_sat(phi * mollier.p_sat(temp));   // dew point
 
+    let U = HX_UNITS, ip = units === "ip";
+    let tStr = function(v) { return ip ? numFormat(U.cToF(v)) + " °F" : numFormat(v) + " °C"; };
     let lines = [
         d.time ? timeFormat(d.time) : "",
-        "x:  " + numFormat(X*1000) + " g/kg",
-        "T:  " + numFormat(temp) + " °C",
+        ip ? "W:  " + numFormat(U.kgkgToGrlb(X)) + " gr/lb" : "x:  " + numFormat(X*1000) + " g/kg",
+        "T:  " + tStr(temp),
         "F:  " + numFormat(phi*100) + " %",
-        "h:  " + numFormat(hh) + " kJ/kg",
-        "Td: " + numFormat(t_dp) + " °C"
+        "h:  " + (ip ? numFormat(U.kjkgToBtulb(hh)) + " Btu/lb" : numFormat(hh) + " kJ/kg"),
+        "Td: " + tStr(t_dp)
     ];
+    let pos = P(d);
 
     let lh = 16;
     lines.forEach(function(txt, idx) {
         current.append("text").attr("class","textContent")
-            .attr("x", x(X)+20)
-            .attr("y", y(Y) - 56 + idx*lh)
+            .attr("x", pos[0]+20)
+            .attr("y", pos[1] - 56 + idx*lh)
             .attr("font-size", 13)
             .attr("font-weight", idx === 0 ? "bold" : "normal")
             .attr("font-family","helvetica")
             .text(txt);
     });
 
-    rect.attr("x", x(X)+16)
-        .attr("y", y(Y) - 70)
+    rect.attr("x", pos[0]+16)
+        .attr("y", pos[1] - 70)
         .attr("rx", 4)
         .attr("width", 152)
         .attr("height", lines.length*lh + 14)

@@ -17,6 +17,15 @@
     Example: <a href="?h=420&amp;out=outside&amp;lang=de">?h=420&amp;out=outside&amp;lang=de</a>
   </p>
   <div id="chart"></div>
+  <p>
+    Layout: <select id="orientation" autocomplete="off" onchange="chart.setOrientation(this.value); log('orientation: ' + this.value)">
+      <option value="mollier">mollier</option><option value="psychrometric">psychrometric</option></select>
+    Units: <select id="units" autocomplete="off" onchange="chart.setUnits(this.value); log('units: ' + this.value)">
+      <option value="si">si</option><option value="ip">ip</option></select>
+    (switches the live chart via <code>setOrientation</code> / <code>setUnits</code>; also as query parameters
+    <code>orientation</code> = <code>mollier</code> | <code>psychrometric</code> and <code>units</code> = <code>si</code> | <code>ip</code>,
+    e.g. <a href="?orientation=psychrometric&amp;units=ip">?orientation=psychrometric&amp;units=ip</a>)
+  </p>
   <div id="log"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
@@ -49,9 +58,15 @@
     var H = Number(q.get("h")) || 640;
     var OUT = q.get("out") || "inside";
     var DE = q.get("lang") === "de";
+    var ORIENT = q.get("orientation") || "mollier";
+    var UNITS = q.get("units") || "si";
+    document.getElementById("orientation").value = ORIENT;
+    document.getElementById("units").value = UNITS;
     // Every visible text can be replaced (here: German) — no built-in translations.
     var captionsDe = { temperature: "Temperatur ϑ [°C]", rel_humidity: "rel. Feuchte φ [%]",
                        density: "Dichte ρ [kg/m³]", enthalpy: "Enthalpie h [kJ/kg]", x_axis: "x [g/kg]" };
+    var captionsDeIp = { temperature: "Trockentemperatur [°F]", rel_humidity: "rel. Feuchte φ [%]",
+                         density: "Dichte [lb/ft³]", enthalpy: "Enthalpie [Btu/lb]", x_axis: "W [gr/lb]" };
     var textsDe = { outdoor: "Aussenluft", now: "Jetzt", ventilation_dries: "Lüften trocknet",
                     ventilation_humidifies: "Lüften befeuchtet", ventilation_neutral: "Lüften: keine Änderung",
                     freq_hours: "{n} h/Jahr ausserhalb", freq_days: "{n} Tage/Jahr ausserhalb",
@@ -64,8 +79,10 @@
       window.__results.construct = ms(function () {
         chart = new MollierChart("#chart", {
           height: H, domainX: [0, 0.02], domainY: [-15, 38],
-          lineOpts: { xAxisTitle: DE ? "Wassergehalt x [g/kg]" : "absolute water content x [g/kg]" },
-          captions: DE ? captionsDe : undefined,
+          orientation: ORIENT, units: UNITS,
+          // English: the default title (it follows the units); German: own title
+          lineOpts: DE ? { xAxisTitle: UNITS === "ip" ? "Wassergehalt W [gr/lb]" : "Wassergehalt x [g/kg]" } : {},
+          captions: DE ? (UNITS === "ip" ? captionsDeIp : captionsDe) : undefined,
           texts: DE ? textsDe : undefined
         });
       });

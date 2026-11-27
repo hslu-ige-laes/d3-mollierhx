@@ -325,6 +325,23 @@
                 <div id="vent_note"></div>
             </div>
 
+            <div class="cards-2">
+                <div class="card">
+                    <div class="title">Layout</div>
+                    <select id="orientation_select" autocomplete="off" onchange="handle_layout()">
+                        <option value="mollier" selected>Mollier h,x</option>
+                        <option value="psychrometric">psychrometric (ASHRAE)</option>
+                    </select>
+                </div>
+                <div class="card">
+                    <div class="title">Units</div>
+                    <select id="units_select" autocomplete="off" onchange="handle_layout()">
+                        <option value="si" selected>SI (°C, g/kg, kJ/kg)</option>
+                        <option value="ip">IP (°F, gr/lb, Btu/lb)</option>
+                    </select>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="title">Captions</div>
                 <select id="caption_lang" onchange="draw_background()">
@@ -450,7 +467,9 @@
                     outside air; the dashed line between them is the ventilation (mixing) line, and the note above the
                     diagram says whether airing dries the room or adds moisture (outside air drier or moister by more than
                     0.3&nbsp;g/kg). A point outside the axes becomes an arrow on the edge with its value — try an outside
-                    temperature of &minus;25&nbsp;°C.
+                    temperature of &minus;25&nbsp;°C. <em>Layout</em> switches to the psychrometric chart used in
+                    the US (ASHRAE: dry-bulb temperature horizontal, humidity ratio on the right), <em>Units</em> to
+                    °F, gr/lb and Btu/lb; the input fields stay in SI units.
                 </p>
             </div>
         </div>
