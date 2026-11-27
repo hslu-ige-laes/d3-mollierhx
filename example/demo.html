@@ -289,14 +289,14 @@
                             <label>ALTITUDE</label>
                             <div class="with-unit">
                                 <input type="text" autocomplete="off" id="altitude_input" onchange="handle_altitude()">
-                                <span class="unit">m</span>
+                                <span class="unit" data-unit="alt">m</span>
                             </div>
                         </div>
                         <div class="field">
                             <label>PRESSURE</label>
                             <div class="with-unit">
                                 <input type="text" autocomplete="off" id="pressure_input" onchange="handle_p()">
-                                <span class="unit">Pa</span>
+                                <span class="unit" data-unit="p">Pa</span>
                             </div>
                         </div>
                     </div>
@@ -310,13 +310,13 @@
                 <div class="state-row">
                     <input type="checkbox" id="show_room" checked onchange="drawPoints()">
                     <span class="name">room</span>
-                    <input type="text" autocomplete="off" id="room_t" value="22.5" onchange="drawPoints()">&nbsp;°C
+                    <input type="text" autocomplete="off" id="room_t" value="22.5" onchange="drawPoints()"><span data-unit="t">&nbsp;°C</span>
                     <input type="text" autocomplete="off" id="room_rh" value="48" onchange="drawPoints()">&nbsp;%
                 </div>
                 <div class="state-row">
                     <input type="checkbox" id="show_out" checked onchange="drawPoints()">
                     <span class="name" style="color:#2563eb">outside air</span>
-                    <input type="text" autocomplete="off" id="out_t" value="6.8" onchange="drawPoints()">&nbsp;°C
+                    <input type="text" autocomplete="off" id="out_t" value="6.8" onchange="drawPoints()"><span data-unit="t">&nbsp;°C</span>
                     <input type="text" autocomplete="off" id="out_rh" value="89" onchange="drawPoints()">&nbsp;%
                 </div>
                 <div class="checks" style="margin-bottom:8px;">
@@ -364,11 +364,11 @@
             <div class="card slider-group">
                 <div class="title">Diagram domain</div>
                 <div class="row">
-                    <label>x-range <span class="unit">[g/kg]</span></label>
+                    <label>x-range <span class="unit" data-unit="x">[g/kg]</span></label>
                     <div id="rangeX"></div>
                 </div>
                 <div class="row">
-                    <label>y-range <span class="unit">[°C]</span></label>
+                    <label>y-range <span class="unit" data-unit="t">[°C]</span></label>
                     <div id="rangeY"></div>
                 </div>
                 <div class="inline-field">
@@ -383,7 +383,7 @@
                     <label><input type="checkbox" id="show_comfort" checked autocomplete="off" onchange="refresh_comfort()"> show comfort zone</label>
                 </div>
                 <div class="row">
-                    <label>temperature <span class="unit">[°C]</span></label>
+                    <label>temperature <span class="unit" data-unit="t">[°C]</span></label>
                     <div id="rangeT"></div>
                 </div>
                 <div class="row">
@@ -391,7 +391,7 @@
                     <div id="rangePhi"></div>
                 </div>
                 <div class="row">
-                    <label>abs. humidity <span class="unit">[g/kg]</span></label>
+                    <label>abs. humidity <span class="unit" data-unit="x">[g/kg]</span></label>
                     <div id="rangeXX"></div>
                 </div>
             </div>
@@ -401,16 +401,16 @@
                 <div class="band-row">
                     <input type="checkbox" id="band1_on" checked onchange="refresh_comfort()">
                     <span class="tag" style="border-color:#E67E22;"></span>
-                    ±&nbsp;<input type="text" autocomplete="off" id="band1_dt" value="1" onchange="refresh_comfort()">&nbsp;K
-                    &nbsp;/&nbsp;±&nbsp;<input type="text" autocomplete="off" id="band1_dphi" value="5" onchange="refresh_comfort()">&nbsp;%
-                    &nbsp;/&nbsp;x≤&nbsp;<input type="text" autocomplete="off" id="band1_x" value="12" onchange="refresh_comfort()">&nbsp;g/kg
+                    ±&nbsp;<input type="text" autocomplete="off" id="band1_dt" value="1" onchange="refresh_comfort()"><span data-unit="dt">&nbsp;K
+                    &nbsp;/&nbsp;±&nbsp;</span><input type="text" autocomplete="off" id="band1_dphi" value="5" onchange="refresh_comfort()">&nbsp;%
+                    &nbsp;/&nbsp;x≤&nbsp;<input type="text" autocomplete="off" id="band1_x" value="12" onchange="refresh_comfort()"><span data-unit="x">&nbsp;g/kg</span>
                 </div>
                 <div class="band-row">
                     <input type="checkbox" id="band2_on" checked onchange="refresh_comfort()">
                     <span class="tag" style="border-color:#C0392B;"></span>
-                    ±&nbsp;<input type="text" autocomplete="off" id="band2_dt" value="2.5" onchange="refresh_comfort()">&nbsp;K
-                    &nbsp;/&nbsp;±&nbsp;<input type="text" autocomplete="off" id="band2_dphi" value="10" onchange="refresh_comfort()">&nbsp;%
-                    &nbsp;/&nbsp;x≤&nbsp;<input type="text" autocomplete="off" id="band2_x" value="13" onchange="refresh_comfort()">&nbsp;g/kg
+                    ±&nbsp;<input type="text" autocomplete="off" id="band2_dt" value="2.5" onchange="refresh_comfort()"><span data-unit="dt">&nbsp;K
+                    &nbsp;/&nbsp;±&nbsp;</span><input type="text" autocomplete="off" id="band2_dphi" value="10" onchange="refresh_comfort()">&nbsp;%
+                    &nbsp;/&nbsp;x≤&nbsp;<input type="text" autocomplete="off" id="band2_x" value="13" onchange="refresh_comfort()"><span data-unit="x">&nbsp;g/kg</span>
                 </div>
             </div>
 
@@ -467,9 +467,11 @@
                     outside air; the dashed line between them is the ventilation (mixing) line, and the note above the
                     diagram says whether airing dries the room or adds moisture (outside air drier or moister by more than
                     0.3&nbsp;g/kg). A point outside the axes becomes an arrow on the edge with its value — try an outside
-                    temperature of &minus;25&nbsp;°C. <em>Layout</em> switches to the psychrometric chart used in
+                    temperature of &minus;25&nbsp;°C (&minus;13&nbsp;°F). <em>Layout</em> switches to the psychrometric chart used in
                     the US (ASHRAE: dry-bulb temperature horizontal, humidity ratio on the right), <em>Units</em> to
-                    °F, gr/lb and Btu/lb; the input fields stay in SI units.
+                    °F, gr/lb and Btu/lb, for the chart and all input fields (temperatures, differences, humidity
+                    ratio, altitude in ft, pressure in inHg); the values are converted, the state stays the same. An
+                    uploaded <code>.csv</code> stays in °C.
                 </p>
             </div>
         </div>

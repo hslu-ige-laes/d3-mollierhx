@@ -27,7 +27,9 @@ versions are listed on the [releases page](https://github.com/hslu-ige-laes/d3-m
   their saturation clip, click position and tooltips go through the projection; IP tooltips and
   `MOLLIER_CHART_DEFAULT_TEXTS_IP` (`{alt_ft} ft`, `{inhg} inHg`; new placeholders `{alt_ft}`,
   `{inhg}`, `{pa}`).
-- Demo and MollierChart test page: selectors for layout and units.
+- Demo and MollierChart test page: selectors for layout and units. In the demo all inputs follow
+  the units (temperatures, differences, humidity ratio, altitude, pressure, range sliders, legend);
+  the state stays SI, so switching back and forth does not change the chart.
 - `CLAUDE.md` for contributors using Claude Code.
 
 ### Changed

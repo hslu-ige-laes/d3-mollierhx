@@ -5,17 +5,75 @@ let dataXY = [];       // calculated data-positions on the diagram
 // guide. ISA barometric formula, as in handle_altitude().
 let altitude0 = 450;
 let p = 101325 * Math.pow(1 - 2.25577e-5 * altitude0, 5.25588);
-document.getElementById("pressure_input").value = Math.round(p);
-document.getElementById("altitude_input").value = altitude0;
 
 // Mollier coordinate convention ('classical' default, or 'glueck').
 let convention = "classical";
 let mollier = createMollier(convention);
 
 // Chart layout: 'mollier' (default) or 'psychrometric' (ASHRAE), and the
-// units of ticks, labels and tooltips: 'si' (default) or 'ip'.
+// units of the chart and of all input fields: 'si' (default) or 'ip'.
 let orientation = "mollier";
 let units = "si";
+
+// ---- display units of the input fields --------------------------------
+// The model stays SI (what goes to drawHXCoordinates / createComfort);
+// the fields show the selected units. Kinds and their SI quantity:
+//   t: temperature [°C], dt: temperature difference [K],
+//   x: humidity ratio [kg/kg], alt: altitude [m], p: pressure [Pa].
+function identity(v) { return v; }
+const DISPLAY_UNITS = {
+    t:   { si: { unit: "°C",    to: identity, from: identity, digits: 1 },
+           ip: { unit: "°F",    to: HX_UNITS.cToF, from: HX_UNITS.fToC, digits: 1 } },
+    dt:  { si: { unit: "K",     to: identity, from: identity, digits: 1 },
+           ip: { unit: "°F",    to: HX_UNITS.kToF, from: HX_UNITS.fToK, digits: 1 } },
+    x:   { si: { unit: "g/kg",  to: function(v) { return v * 1000; }, from: function(v) { return v / 1000; }, digits: 1 },
+           ip: { unit: "gr/lb", to: HX_UNITS.kgkgToGrlb, from: HX_UNITS.grlbToKgkg, digits: 0 } },
+    alt: { si: { unit: "m",     to: identity, from: identity, digits: 0 },
+           ip: { unit: "ft",    to: HX_UNITS.mToFt, from: HX_UNITS.ftToM, digits: 0 } },
+    p:   { si: { unit: "Pa",    to: identity, from: identity, digits: 0 },
+           ip: { unit: "inHg",  to: HX_UNITS.paToInhg, from: HX_UNITS.inhgToPa, digits: 2 } }
+};
+function du(kind) { return DISPLAY_UNITS[kind][units === "ip" ? "ip" : "si"]; }
+function toDisplay(kind, si) { return du(kind).to(si); }      // SI -> display units
+function fromDisplay(kind, v) { return du(kind).from(v); }    // display units -> SI
+// Rounded display text without trailing zeros (22.5, 72.5, 96035, 28.36).
+function fmtDisplay(kind, si) { return String(Number(toDisplay(kind, si).toFixed(du(kind).digits))); }
+
+// Text fields with a unit. Each remembers the SI value behind its text, so a
+// unit switch shows the same physical value again (no rounding drift, the
+// chart stays identical); only a typed value is parsed and converted.
+const UNIT_FIELDS = {
+    room_t: "t", out_t: "t",
+    band1_dt: "dt", band2_dt: "dt", band1_x: "x", band2_x: "x",
+    altitude_input: "alt", pressure_input: "p"
+};
+let fieldSI = {};   // id -> { text, units, si }
+function readSI(id) {
+    let el = document.getElementById(id), st = fieldSI[id];
+    if(st && st.text === el.value && st.units === units) return st.si;
+    let v = parseFloat(el.value);
+    let si = isFinite(v) ? fromDisplay(UNIT_FIELDS[id], v) : null;
+    fieldSI[id] = { text: el.value, units: units, si: si };
+    return si;
+}
+function writeSI(id, si) {
+    let el = document.getElementById(id);
+    el.value = (si == null || !isFinite(si)) ? "" : fmtDisplay(UNIT_FIELDS[id], si);
+    fieldSI[id] = { text: el.value, units: units, si: si };
+}
+
+// Altitude slider range in display units.
+const ALTITUDE_SLIDER = { si: { min: -400, max: 4000, step: 10 }, ip: { min: -1300, max: 13100, step: 50 } };
+function setAltitudeSlider(altitudeM) {
+    let el = document.getElementById("altitude_slider");
+    let r = ALTITUDE_SLIDER[units === "ip" ? "ip" : "si"];
+    el.min = r.min; el.max = r.max; el.step = r.step;
+    el.value = Math.round(toDisplay("alt", altitudeM));
+    el.setAttribute("aria-label", "Altitude [" + (units === "ip" ? "ft" : "m a.s.l.") + "]");
+}
+
+writeSI("pressure_input", p);
+writeSI("altitude_input", altitude0);
 
 // Default height: fit the window, so the sticky diagram stays fully visible
 // while the controls scroll (the height field still allows any value).
@@ -102,8 +160,7 @@ function handleBrush(event) {
         domainX = [Math.min(a[0],b[0]),Math.max(a[0],b[0])];
         domainY = [Math.min(a[1],b[1]),Math.max(a[1],b[1])];
         refreshAxis(domainX,domainY);
-        sliderX.move([domainX[0]*1000,domainX[1]*1000],true);
-        sliderY.move(domainY,true);
+        moveDomainSliders();
         
         draw_background();
     } else {
@@ -112,11 +169,16 @@ function handleBrush(event) {
         domainX = domainX0;
         domainY = domainY0;
         refreshAxis(domainX,domainY);
-        sliderX.move([domainX[0]*1000,domainX[1]*1000],true);
-        sliderY.move(domainY,true);
+        moveDomainSliders();
 
         draw_background();
     }
+}
+
+// Diagram-domain sliders show domainX / domainY in display units.
+function moveDomainSliders() {
+    sliderX.move([toDisplay("x",domainX[0]),toDisplay("x",domainX[1])],true);
+    sliderY.move([toDisplay("t",domainY[0]),toDisplay("t",domainY[1])],true);
 }
 
 function refreshAxis(domainX,domainY) {
@@ -126,26 +188,28 @@ function refreshAxis(domainX,domainY) {
 let width_s = d3.select("#rangeX").node().offsetWidth;
 // Define the sliders
 let sliderX = createRangeSlider(width_s,50,"#rangeX");
-sliderX.domain([domainX0[0]*1000,domainX0[1]*1000]);
+sliderX.domain([toDisplay("x",domainX0[0]),toDisplay("x",domainX0[1])]);
 sliderX.onEnd = function(a,b) {
-    domainX = [a/1000,b/1000];
+    domainX = [fromDisplay("x",a),fromDisplay("x",b)];
     refreshAxis(domainX,domainY);
     draw_background();
 }
 
 let sliderY = createRangeSlider(width_s,50,"#rangeY");
-sliderY.domain(domainY0);
+sliderY.domain([toDisplay("t",domainY0[0]),toDisplay("t",domainY0[1])]);
 sliderY.onEnd = function(a,b) {
-    domainY = [a,b];
+    domainY = [fromDisplay("t",a),fromDisplay("t",b)];
     refreshAxis(domainX,domainY);
     draw_background();
 }
 
-// Sliders for the comfort-zone
+// Sliders for the comfort-zone (domains SI)
+const RANGE_T_DOMAIN = [-20,50];
+const RANGE_XX_DOMAIN = [0,0.035];
 let sliderT = createRangeSlider(width_s,50,"#rangeT");
-sliderT.domain([-20,50]);
+sliderT.domain([toDisplay("t",RANGE_T_DOMAIN[0]),toDisplay("t",RANGE_T_DOMAIN[1])]);
 sliderT.onChange = function(a,b) {
-    rangeT = [...[a,b]];
+    rangeT = [fromDisplay("t",a),fromDisplay("t",b)];
     refresh_comfort();
 }
 
@@ -157,9 +221,9 @@ sliderPhi.onChange = function(a,b) {
 }
 
 let sliderXX = createRangeSlider(width_s,50,"#rangeXX");
-sliderXX.domain([0,35]);
+sliderXX.domain([toDisplay("x",RANGE_XX_DOMAIN[0]),toDisplay("x",RANGE_XX_DOMAIN[1])]);
 sliderXX.onChange = function(a,b) {
-    rangeX = [...[a/1000,b/1000]];
+    rangeX = [fromDisplay("x",a),fromDisplay("x",b)];
     refresh_comfort();
 }
 
@@ -168,9 +232,16 @@ sliderXX.onChange = function(a,b) {
 function line(d) { return proj.line(d); }
 
 // Draw comfort zone
-let rangeT =   [20,26];         sliderT.move(rangeT,true);  // update slider-values
+let rangeT =   [20,26];
 let rangePhi = [0.3,0.65];      sliderPhi.move([rangePhi[0]*100,rangePhi[1]*100],true);
-let rangeX =   [0,0.0115];      sliderXX.move([rangeX[0]*1000,rangeX[1]*1000],true);
+let rangeX =   [0,0.0115];
+moveComfortSliders();           // update slider-values
+
+// Comfort-zone sliders show rangeT / rangeX in display units.
+function moveComfortSliders() {
+    sliderT.move([toDisplay("t",rangeT[0]),toDisplay("t",rangeT[1])],true);
+    sliderXX.move([toDisplay("x",rangeX[0]),toDisplay("x",rangeX[1])],true);
+}
 
 let pathos = createComfort(rangeT,rangePhi,rangeX,p,mollier);
 comfortZone.selectAll("path")
@@ -209,18 +280,18 @@ function refreshBand(group, onId, dtId, dphiId, xId, color, legId, legTxtId) {
         if(leg) leg.style.display = "none";
         return;
     }
-    let dt = Number(document.getElementById(dtId).value) || 0;
+    let dt = readSI(dtId) || 0;                               // [K]
     let dphi = (Number(document.getElementById(dphiId).value) || 0) / 100;
-    let xmax = Number(document.getElementById(xId).value);   // abs humidity [g/kg]
-    let rX = (xmax > 0) ? [0, xmax/1000] : [0, 0.030];
+    let xmax = readSI(xId);                                   // abs humidity [kg/kg]
+    let rX = (xmax > 0) ? [0, xmax] : [0, 0.030];
     let cp = function(v) { return Math.max(0, Math.min(1, v)); };
     drawBand(group, [rangeT[0]-dt, rangeT[1]+dt],
              [cp(rangePhi[0]-dphi), cp(rangePhi[1]+dphi)], rX, color);
     if(leg) leg.style.display = "";
     let legTxt = document.getElementById(legTxtId);
     if(legTxt) {
-        var txt = "± " + dt + " K / " + (dphi*100) + " %";
-        if(xmax > 0) txt += " / x≤ " + xmax + " g/kg";
+        var txt = "± " + fmtDisplay("dt", dt) + " " + du("dt").unit + " / " + (dphi*100) + " %";
+        if(xmax > 0) txt += " / x≤ " + fmtDisplay("x", xmax) + " " + du("x").unit;
         legTxt.innerHTML = txt;
     }
 }
@@ -303,9 +374,34 @@ function getLineOpts() {
 // Chart layout and units (selectors in demo.html).
 function handle_layout() {
     orientation = document.getElementById("orientation_select").value;
-    units = document.getElementById("units_select").value;
+    let newUnits = document.getElementById("units_select").value;
+    if(newUnits !== units) switchUnits(newUnits);
     refreshAxis(domainX, domainY);
     draw_background();
+}
+
+// Show every input in the new units: the SI values behind the fields and
+// sliders stay as they are, only their display (and the unit labels) change.
+function switchUnits(newUnits) {
+    let si = {};
+    Object.keys(UNIT_FIELDS).forEach(function(id) { si[id] = readSI(id); });   // in the old units
+    let oldUnit = {};
+    Object.keys(DISPLAY_UNITS).forEach(function(kind) { oldUnit[kind] = du(kind).unit; });
+    units = newUnits;
+    Object.keys(UNIT_FIELDS).forEach(function(id) { writeSI(id, si[id]); });
+    // Unit labels: <span data-unit="kind"> holds e.g. "[°C]" or "&nbsp;K / ± ";
+    // only the unit in its text is replaced.
+    document.querySelectorAll("[data-unit]").forEach(function(el) {
+        let kind = el.getAttribute("data-unit");
+        el.textContent = el.textContent.replace(oldUnit[kind], du(kind).unit);
+    });
+    setAltitudeSlider(si.altitude_input);
+    sliderX.domain([toDisplay("x",domainX0[0]),toDisplay("x",domainX0[1])]);
+    sliderY.domain([toDisplay("t",domainY0[0]),toDisplay("t",domainY0[1])]);
+    sliderT.domain([toDisplay("t",RANGE_T_DOMAIN[0]),toDisplay("t",RANGE_T_DOMAIN[1])]);
+    sliderXX.domain([toDisplay("x",RANGE_XX_DOMAIN[0]),toDisplay("x",RANGE_XX_DOMAIN[1])]);
+    moveDomainSliders();
+    moveComfortSliders();
 }
 
 // Captions and texts are plain options: any language can be passed in.
@@ -335,8 +431,8 @@ function drawPoints() {
     let ctx = { x: proj.xScale, y: proj.yScale, width: width, height: height, mollier: mollier, pressure: Number(p),
                 project: proj.project, units: units };
     let texts = isGerman() ? TEXTS_DE : {};
-    let room = on("show_room") ? { t: num("room_t"), rh: num("room_rh") } : null;
-    let outdoor = on("show_out") ? { t: num("out_t"), rh: num("out_rh") } : null;
+    let room = on("show_room") ? { t: readSI("room_t"), rh: num("room_rh") } : null;
+    let outdoor = on("show_out") ? { t: readSI("out_t"), rh: num("out_rh") } : null;
     let res = hxDrawOutdoor(pointsLayer, ctx, outdoor, room,
                             { ventilationLine: on("vent_line"), texts: texts });
     if(room) hxDrawStatePoint(pointsLayer, ctx, room, { color: "black", className: "room-point", texts: texts });
@@ -400,21 +496,24 @@ function drawAltitudePressure() {
 }
 
 function handle_p() {
-    p = document.getElementById("pressure_input").value;
+    let pa = readSI("pressure_input");                       // [Pa]
+    if(!(pa > 0)) return;
+    p = pa;
     // keep the altitude field in sync (inverse ISA barometric formula)
-    let h = (1 - Math.pow(Number(p)/101325, 1/5.25588)) / 2.25577e-5;
-    document.getElementById("altitude_input").value = Math.round(h);
-    document.getElementById("altitude_slider").value = Math.round(h);
+    let h = (1 - Math.pow(p/101325, 1/5.25588)) / 2.25577e-5;
+    writeSI("altitude_input", h);
+    setAltitudeSlider(h);
     calcData();
     draw_background();
 }
 
 function handle_altitude() {
-    let h = Number(document.getElementById("altitude_input").value);
-    document.getElementById("altitude_slider").value = h;
+    let h = readSI("altitude_input");                        // [m a.s.l.]
+    if(h == null) return;
+    setAltitudeSlider(h);
     // ISA barometric formula: pressure [Pa] from altitude [m a.s.l.]
     p = 101325 * Math.pow(1 - 2.25577e-5 * h, 5.25588);
-    document.getElementById("pressure_input").value = Math.round(p);
+    writeSI("pressure_input", p);
     calcData();
     draw_background();
 }
