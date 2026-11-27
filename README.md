@@ -36,6 +36,7 @@ The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to de
 ## Features
 
 - **Complete h,x diagram** for any air pressure: iso-lines of temperature, relative and absolute humidity, density and enthalpy, each family on or off, in the `classical` (per kg dry air) or `glueck` (per kg moist air) convention.
+- **Psychrometric chart (ASHRAE) and IP units**: the same diagram transposed (dry-bulb temperature horizontal, humidity ratio on the right) and/or labelled in °F, gr/lb, Btu/lb and lb/ft³.
 - **Comfort zone** as a polygon from temperature, relative and absolute humidity limits, plus orange and red **warning bands** around it.
 - **Measurements** as a scatter plot coloured by season, with tooltips (x, T, φ, h, Td).
 - **Outside air and ventilation**: the outside point, a dashed ventilation line to the room point and a note whether airing dries the room or adds moisture.
@@ -60,7 +61,8 @@ The Mollier h,x-diagram was proposed by Richard Mollier in 1923 and allows to de
 
 The files in `/src` are plain browser scripts (global functions, no build step) that also run in
 strict mode, so they can be inlined, concatenated or wrapped as ES modules. Load order:
-`mollierFunctions.js`, `coordinateGenerator.js`, `drawComfort.js`, then `mollierChart.js`.
+`mollierFunctions.js`, `hxUnits.js`, `coordinateGenerator.js`, `drawComfort.js`, then `mollierChart.js`
+(`hxUnits.js` is new in 0.3.0 and needed by the three after it).
 
 ## Usage
 
@@ -78,6 +80,22 @@ Exemplary straight forward implementation with a manual csv file uploader and a 
 Functions for the coordinate-transformations in the Mollier hx-diagram.
 In order to understand the equations in the source refer to chapter 2.1 and 2.2 of <a href="http://berndglueck.de/dl/?dl=Stoffwerte+Stoffwerte.pdf" target="_blank">"Glück: Zustands- und Stoffwerte"</a>.
 
+### /src/hxUnits.js
+
+Units (SI ↔ IP) and the screen projection of the diagram. The diagram data always stay SI
+(x in kg/kg, diagram-y in °C, h in kJ/kg, p in Pa); IP units only change ticks, labels and captions.
+
+| name | purpose |
+| --- | --- |
+| `HX_UNITS` | constants and conversions: `cToF`, `fToC`, `kToF` / `fToK` (differences, ×1.8), `kgkgToGrlb` / `grlbToKgkg` (×7000), `mToFt` / `ftToM`, `paToInhg` / `inhgToPa` (3386.389 Pa per inHg), `kjkgToBtulb` / `btulbToKjkg` (absolute enthalpy, h_IP = h_SI / 2.326 + 7.686), `kjkgToBtulbDelta` / `btulbToKjkgDelta` (differences, /2.326), `kgm3ToLbft3` / `lbft3ToKgm3` (×0.0624279606) |
+| `hxProjection(width, height, domainX, domainY, orientation)` | `{orientation, xScale, yScale, project(x, y) → [px, py], invert(px, py) → [x, y], line}`; `'mollier'` (default): px from x, py from y; `'psychrometric'`: px from y (left → right), py from x (bottom → top); `line` is a `d3.line` over `{x, y}` points |
+| `hxNiceTicks(lo, hi, opts)` | round ticks in display units: `{step, major, minor}`; `opts.steps` (candidates), `maxCount`, `length` + `minSpacing` (px) |
+| `hxIsIP(units)`, `hxOrientation(orientation)` | normalise the option values |
+
+The enthalpy references differ: SI h = 0 for dry air at 0 °C, ASHRAE IP h = 0 for dry air at 0 °F,
+so 0 kJ/kg ≈ 7.69 Btu/lb (`kjkgToBtulb`). For enthalpy *differences* use `kjkgToBtulbDelta`
+(the same as `pyedautils.units.kjkg_to_btulb`).
+
 ### /src/coordinateGenerator.js
 
 The function "drawHXCoordinates()" draws the coordinate-lines of temperature,
@@ -92,10 +110,12 @@ drawHXCoordinates(container, Width, Height, margin, domainX, domainY, p, mollier
 | key | default | meaning |
 | --- | --- | --- |
 | `showTemperature`, `showDensity`, `showRelHumidity`, `showEnthalpy`, `showAbsHumidity` | `true` | curve families on/off (lines, labels and caption) |
-| `xAxisTitle` | `""` | centred title below the x axis |
+| `xAxisTitle` | `""` | title of the humidity axis (below it; rotated on the right in the psychrometric orientation) |
 | `captions` | see below | caption texts; `""` hides a caption |
+| `orientation` | `"mollier"` | `"psychrometric"`: ASHRAE layout, see [below](#psychrometric-chart-ashrae-and-ip-units) |
+| `units` | `"si"` | `"ip"`: °F, gr/lb, Btu/lb, lb/ft³ for ticks, labels and captions (domains stay SI) |
 
-`captions` keys and English defaults (`HX_DEFAULT_CAPTIONS`):
+`captions` keys and English defaults (`HX_DEFAULT_CAPTIONS`, for `units: "si"`):
 
 | key | default | where |
 | --- | --- | --- |
@@ -105,6 +125,13 @@ drawHXCoordinates(container, Width, Height, margin, domainX, domainY, p, mollier
 | `enthalpy` | `Enthalpy [kJ/kg]` | right edge, bottom |
 | `x_axis` | `x [g/kg]` | right margin, beside the end of the x axis |
 | `x_axis_title` | `""` (or `xAxisTitle`) | below the x axis |
+
+With `units: "ip"` the defaults are `HX_DEFAULT_CAPTIONS_IP`: `Dry-bulb temperature [°F]`,
+`Relative humidity [%]`, `Density [lb/ft³]`, `Enthalpy [Btu/lb]`, `W [gr/lb]` and `""`. In the
+psychrometric orientation `x_axis` defaults to `Humidity ratio x [g/kg]` / `Humidity ratio W [gr/lb]`
+(there is room for it along the right axis). `hxDefaultCaptions(units, orientation)` returns the
+defaults; `hxResolveCaptions(opts)` merges `opts.captions` over them, so the keys keep their meaning
+in every layout.
 
 The right-edge captions are laid out from the top of the axis down, one equal segment each, with a
 common font size of 8–12 px that follows from text length and chart height, so they fit at 420 px
@@ -121,12 +148,15 @@ drawHXCoordinates(d3.select("#chart"), 600, 420, {top: 30, right: 60, bottom: 40
 
 ### /src/drawComfort.js
 
-drawComfort() creates the comfort-zone polygon (`createComfort()` returns its points).
+drawComfort() creates the comfort-zone polygon (`createComfort()` returns its points). It takes an
+optional last argument `opts = { orientation }`.
 
 The file also holds overlay helpers (plain globals). They draw into a `<g>` in plot coordinates
 (translated to the top-left corner of the axes) and take a context
-`ctx = { x, y, width, height, mollier, pressure }` (the d3 scales, the size of the axes in px, the
-`createMollier()` suite and the pressure in Pa). A *state* is `{t, rh}` (rh in %), `{t, phi}`
+`ctx = { x, y, width, height, mollier, pressure, project, units }` (the d3 scales, the size of the
+axes in px, the `createMollier()` suite and the pressure in Pa; optional `project` from
+`hxProjection(...)`, used instead of `x` / `y` and needed for the psychrometric orientation, and
+`units` `"si"` | `"ip"` for the default edge-arrow label). A *state* is `{t, rh}` (rh in %), `{t, phi}`
 (phi 0..1) or a diagram position `{x, y}`.
 
 | function | purpose |
@@ -137,7 +167,7 @@ The file also holds overlay helpers (plain globals). They draw into a `<g>` in p
 | `hxVentilationEffect(room, outdoor, threshold)` | `"dries"` / `"humidifies"` / `"neutral"` / `null` (threshold 0.0003 kg/kg = 0.3 g/kg) |
 | `hxVentilationNote(effect, texts)` | the sentence for an effect |
 | `hxClampPoint(ctx, state)`, `hxDrawEdgeArrow(layer, ctx, pos, color, label)` | building blocks of the edge arrow |
-| `hxState(state, mollier, p)`, `hxStateLabel(state, texts)` | normalise a state; edge label like `6.8 °C · 89 %` |
+| `hxState(state, mollier, p)`, `hxStateLabel(state, texts, units)` | normalise a state; edge label like `6.8 °C · 89 %` (`units` `"ip"`: `44.3 °F · 89 %`) |
 | `hxPlaceContourLabels(items, opts)` | one label per frequency line without overlaps: inside the axes, at least `minGap` (4 px) apart, the highest free spot of the line, else the one farthest from the other labels; dropped when the line has no free spot |
 | `hxDrawContourLabels(layer, contours, toScreen, opts)` | draws those labels (bold value on a white box); used by `MollierChart` and the demo |
 
@@ -160,7 +190,7 @@ All texts are options with English defaults (`HX_DEFAULT_TEXTS`), no translation
 | `ventilation_dries` | `ventilating dries` |
 | `ventilation_humidifies` | `ventilating adds moisture` |
 | `ventilation_neutral` | `ventilating: no change` |
-| `state_value` | `{t} °C · {rh} %` (edge-arrow label; also `{x}` in g/kg) |
+| `state_value` | `{t} °C · {rh} %` (edge-arrow label; also `{x}` in g/kg, `{t_f}` in °F, `{x_gr}` in gr/lb; IP default `{t_f} °F · {rh} %`, `HX_DEFAULT_TEXTS_IP`) |
 
 CSS classes: `hx-outdoor`, `hx-outdoor-point`, `hx-ventilation-line`, `hx-ventilation-note`
 (+ `hx-ventilation-dries|humidifies|neutral`), `hx-edge-arrow`, `hx-edge-label`, `hx-state`.
@@ -204,7 +234,13 @@ chart.setCaptions({ density: "" });      // hide a caption
 (`0.0003` kg/kg), `room` (instead of the point from `setCurrent`). `setCurrent(state, opts)`:
 `color` (`black`). Other methods: `setFrequency`, `setProcessChain`, `setMeanLines`,
 `setShowPoints`, `setCoordinateLines`, `setDomain`, `setPressure`, `setConvention`, `setHeight`,
-`resize`, `onPlotClick`, `destroy`.
+`resize`, `onPlotClick`, `destroy`, and `setOrientation("mollier" | "psychrometric")` /
+`setUnits("si" | "ip")` (constructor options `orientation` and `units`, defaults `"mollier"` and
+`"si"`). All screen positions go through `chart.project(x, y)` (`chart.proj` is the
+`hxProjection`); `chart.x` / `chart.y` are its scales. `onPlotClick` always reports SI values.
+With `units: "ip"` tooltips show °F, gr/lb and Btu/lb, the default humidity-axis title is
+`humidity ratio W [gr/lb]` (unless `lineOpts.xAxisTitle` is given) and the texts take the
+IP defaults below.
 
 Texts (`opts.texts` / `setTexts`), in addition to `HX_DEFAULT_TEXTS` above
 (`MOLLIER_CHART_DEFAULT_TEXTS`):
@@ -214,11 +250,44 @@ Texts (`opts.texts` / `setTexts`), in addition to `HX_DEFAULT_TEXTS` above
 | `now` | `Now` (tooltip title of the room point) |
 | `tip_x`, `tip_t`, `tip_phi`, `tip_h`, `tip_td` | `x`, `T`, `φ`, `h`, `Td` (tooltip row labels) |
 | `freq_hours`, `freq_days` | `{n} h/year outside`, `{n} days/year outside` |
-| `altitude`, `pressure` | `{alt} m a.s.l.`, `{hpa} hPa` (top right; `""` hides) |
+| `altitude`, `pressure` | `{alt} m a.s.l.`, `{hpa} hPa` (top right; `""` hides); IP defaults (`MOLLIER_CHART_DEFAULT_TEXTS_IP`) `{alt_ft} ft`, `{inhg} inHg`; placeholders `{alt}` (m), `{alt_ft}`, `{hpa}`, `{inhg}`, `{pa}` |
+
+The placeholders keep their units in every mode (`{t}` is always °C, `{alt}` always m), so
+translated templates stay correct; IP values have their own placeholders.
 
 Data, comfort zone, bands and frequency lines are clipped to the axes; room and outside points sit in
 an unclipped layer on top (`g.hx-top > g.hx-points`). Ids (clip path, arrow marker) are unique per
 chart, so several charts can share a page.
+
+### Psychrometric chart (ASHRAE) and IP units
+
+In the US the same physics is drawn as the ASHRAE psychrometric chart: dry-bulb temperature
+horizontal (°F), humidity ratio vertical with its scale on the right (gr/lb = g/kg × 7), the
+saturation curve top left, the enthalpy scale on the diagonal beyond the saturation curve (Btu/lb).
+The classical h,x diagram with its axes swapped is exactly this construction, so the library only
+changes the projection:
+
+```js
+drawHXCoordinates(d3.select("#chart"), 900, 600, {top: 30, right: 60, bottom: 45, left: 50},
+                  [0, 0.02], [-20, 50], 101325, createMollier(),
+                  { orientation: "psychrometric", units: "ip" });
+
+const chart = new MollierChart("#chart", { orientation: "psychrometric", units: "ip" });
+chart.setUnits("si");                     // orientation and units are independent
+```
+
+- `orientation` and `units` are independent: `mollier` + `ip` is the h,x diagram with °F / gr/lb
+  labels, `psychrometric` + `si` the ASHRAE layout in °C / g/kg.
+- Domains, data, states and callbacks stay SI (`domainX` in kg/kg, `domainY` in °C); IP ticks are
+  round IP values (°F every 10, gr/lb every 10 or 20, Btu/lb every 5, lb/ft³ every 0.005, depending
+  on the size) converted to SI for drawing; the iso-temperature and iso-humidity lines sit on these
+  ticks.
+- Psychrometric layout: temperature axis at the bottom, humidity-ratio axis on the right (the
+  rotated caption there is `x_axis_title` if set, else `x_axis`), the family captions (relative
+  humidity, density, enthalpy) along the left edge. Keep `margin.right` ≥ 50 px for the tick
+  numbers and the caption.
+- Overlays: pass `ctx.project` (and `ctx.units`) to the helpers of `drawComfort.js`; `MollierChart`
+  does this itself.
 
 ### /src/csvReader.js
 
@@ -236,7 +305,12 @@ timestamp,humidity,temperature
 ### Checks
 
 `node test/check.js` runs dependency-free checks of the pure helpers (caption layout, ventilation
-effect, state handling) with the sources evaluated in strict mode.
+effect, state handling, unit conversions, projection, IP ticks) with the sources evaluated in
+strict mode.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Reading the diagram, comfort and saving energy
 
