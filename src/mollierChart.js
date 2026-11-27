@@ -17,7 +17,7 @@
 // Usage:
 //   const chart = new MollierChart("#chart", { height: 700 });
 //   chart.setData(records);                 // [{t,rh,time}, ...]  (rh in %)
-//   chart.setComfort({t:[20,26], phi:[30,65], x:[0,11.5]});
+//   chart.setComfort({t:[20,26], phi:[0.3,0.65], x:[0,0.0115]}); // phi fraction, x kg/kg
 //   chart.setBands(orange, red);            // each {t,phi,x,color,label}|null
 //   chart.setFrequency({show:true, days:false, smoothing:4});
 //   chart.setProcessChain(states);          // [{x,y,number,label,t,phi,xg,h}]

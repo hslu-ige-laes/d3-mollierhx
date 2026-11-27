@@ -27,6 +27,27 @@ ventilation line, frequency lines. Live demo on GitHub Pages (`index.html`, `exa
 - Every user-visible text is an option with English defaults (captions, texts); placeholders keep
   their units in every mode.
 
+## Pitfalls
+
+- Units at the API: `setData()` records carry `rh` in **percent**; everything passed to
+  `createComfort`, `setComfort`, `setBands`, `setDomain` is already kg/kg and a fraction
+  (`{t:[20,26], phi:[0.3,0.65], x:[0,0.0115]}`, see `example/chart-test.html`). A null
+  timestamp in `setData` means "no date" (season index 0), not epoch 1970.
+- Frequency contours and mean-value curves exist twice: in `MollierChart` and in the demo
+  `example/mollierhx.js` (same `FREQ_*` constants, not shared). A fix in one usually has to be
+  mirrored in the other.
+- Grid-affecting setters (`setDomain`, `setCoordinateLines`, `setPressure`, `setConvention`,
+  `setOrientation`, `setUnits`, `setHeight`, `resize`) redraw the grid; all other setters must
+  stay cheap and never touch it.
+
+## Demo input formats (`src/csvReader.js`)
+
+- CSV with header: column 0 an ISO-8601 timestamp (`d3.isoParse`), then `humidity` [%],
+  `temperature` [°C] in this order (`example/data.csv`).
+- Meteonorm hourly `.dat` (`example/Zuerich_Kloten-hour.dat`): no header,
+  `year, month, day, hour, temperature, rel. humidity`; detected by a numeric first field > 1800.
+  Hours 1..24 map to 00:00..23:00 UTC.
+
 ## Commands
 
 - `node test/check.js`: dependency-free checks; evaluates the src files in ONE strict-mode vm
