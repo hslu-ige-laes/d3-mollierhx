@@ -1,5 +1,6 @@
 // function that draws a Comfort-zone polygon to a container with defined width and height
-function drawComfort(container,Width,Height,margin,domainX,domainY,rangeT,rangePhi,rangeX,p,mollier) {
+// opts (optional): { orientation: 'mollier' (default) | 'psychrometric' }
+function drawComfort(container,Width,Height,margin,domainX,domainY,rangeT,rangePhi,rangeX,p,mollier,opts) {
 
 	if (!mollier) mollier = createMollier();
 
@@ -18,13 +19,8 @@ function drawComfort(container,Width,Height,margin,domainX,domainY,rangeT,rangeP
 					.attr("width",width)
 					.attr("height",height);
 
-	let x = d3.scaleLinear().range([0,width]).domain(domainX);
-	let y = d3.scaleLinear().range([height,0]).domain(domainY);
-
-	// Line-constructor for the Comfort-path
-	let line = d3.line()
-					.x(function(d) { return x(d.x); })
-					.y(function(d) { return y(d.y); });
+	// Line-constructor for the Comfort-path (through the projection)
+	let line = hxProjection(width, height, domainX, domainY, (opts || {}).orientation).line;
 
 	let pathos = createComfort(rangeT,rangePhi,rangeX,p,mollier);
 	plot.selectAll("path")
@@ -161,11 +157,15 @@ function sortRange(range) {
 //
 // The drawing helpers draw into a <g> in plot coordinates (origin at the
 // top-left corner of the axes) and take a context object
-//   ctx = { x, y, width, height, mollier, pressure }
+//   ctx = { x, y, width, height, mollier, pressure, project, units }
 //     x, y           d3 scales: x [kg/kg] -> px, diagram-y [°C] -> px
 //     width, height  size of the axes in px
 //     mollier        createMollier(...) suite (default: classical)
 //     pressure       air pressure in Pa (default 101325)
+//     project        optional (x, y) -> [px, py], e.g. hxProjection(...).project;
+//                    when given it is used instead of ctx.x / ctx.y (needed
+//                    for the 'psychrometric' orientation)
+//     units          optional 'si' (default) | 'ip': value labels in °F / gr/lb
 //
 // A "state" can be given as {t, rh} (rh in %), {t, phi} (phi 0..1) or as a
 // diagram position {x, y}; hxState() normalises it to {t, phi, x, y}.
@@ -180,8 +180,14 @@ const HX_DEFAULT_TEXTS = {
 	ventilation_humidifies: "ventilating adds moisture",
 	ventilation_neutral: "ventilating: no change",
 	// value label of an edge arrow (point outside the axes); {t} in °C with
-	// one decimal, {rh} in % without decimals, {x} in g/kg with one decimal
+	// one decimal, {rh} in % without decimals, {x} in g/kg with one decimal,
+	// {t_f} in °F with one decimal, {x_gr} in gr/lb without decimals
 	state_value: "{t} °C · {rh} %"
+};
+
+// Defaults that differ for units 'ip' (merged over HX_DEFAULT_TEXTS).
+const HX_DEFAULT_TEXTS_IP = {
+	state_value: "{t_f} °F · {rh} %"
 };
 
 const HX_FONT = "Tahoma, Geneva, sans-serif";
@@ -192,8 +198,9 @@ const HX_VENTILATION_THRESHOLD = 0.0003;
 const HX_VENTILATION_COLORS = { dries: "#b45309", humidifies: "#2563eb", neutral: "#64748b" };
 
 // Defaults merged with user overrides (null/undefined values are ignored).
-function hxTexts(texts) {
-	let out = Object.assign({}, HX_DEFAULT_TEXTS);
+// units 'ip' takes the IP defaults (HX_DEFAULT_TEXTS_IP) for the keys it has.
+function hxTexts(texts, units) {
+	let out = Object.assign({}, HX_DEFAULT_TEXTS, hxIsIP(units) ? HX_DEFAULT_TEXTS_IP : {});
 	if (texts) Object.keys(texts).forEach(function(key) { if (texts[key] != null) out[key] = texts[key]; });
 	return out;
 }
@@ -228,10 +235,14 @@ function hxState(s, mollier, p) {
 	return out;
 }
 
-// Edge-arrow value label of a state, e.g. "6.8 °C · 89 %".
-function hxStateLabel(s, texts) {
-	return hxFormat(hxTexts(texts).state_value, {
-		t: s.t.toFixed(1), rh: (s.phi * 100).toFixed(0), x: (s.x * 1000).toFixed(1)
+// Edge-arrow value label of a state, e.g. "6.8 °C · 89 %" (units 'ip':
+// "44.3 °F · 89 %"). Placeholders: {t} °C and {t_f} °F with one decimal,
+// {rh} % without decimals, {x} g/kg with one decimal, {x_gr} gr/lb without
+// decimals. `units` only picks the default template (HX_DEFAULT_TEXTS_IP).
+function hxStateLabel(s, texts, units) {
+	return hxFormat(hxTexts(texts, units).state_value, {
+		t: s.t.toFixed(1), rh: (s.phi * 100).toFixed(0), x: (s.x * 1000).toFixed(1),
+		t_f: HX_UNITS.cToF(s.t).toFixed(1), x_gr: HX_UNITS.kgkgToGrlb(s.x).toFixed(0)
 	});
 }
 
@@ -276,7 +287,8 @@ function hxAddClipPath(svg, id, width, height) {
 // Plot position of a state, clamped to the axes. Returns
 // {rawX, rawY, cx, cy, outside}; outside = true when it was moved.
 function hxClampPoint(ctx, s) {
-	let rawX = ctx.x(s.x), rawY = ctx.y(s.y);
+	let raw = ctx.project ? ctx.project(s.x, s.y) : null;
+	let rawX = raw ? raw[0] : ctx.x(s.x), rawY = raw ? raw[1] : ctx.y(s.y);
 	let cx = Math.min(ctx.width, Math.max(0, rawX));
 	let cy = Math.min(ctx.height, Math.max(0, rawY));
 	return { rawX: rawX, rawY: rawY, cx: cx, cy: cy, outside: cx !== rawX || cy !== rawY };
@@ -307,7 +319,7 @@ function hxDrawEdgeArrow(layer, ctx, pos, color, label) {
 		layer.append("text")
 			.attr("class", "hx-edge-label")
 			.attr("x", Math.min(ctx.width - 2, Math.max(2, pos.cx + dx)))
-			.attr("y", below ? pos.cy - 12 : above ? pos.cy + 20 : pos.cy + 4)
+			.attr("y", Math.min(ctx.height - 4, below ? pos.cy - 12 : above ? pos.cy + 20 : pos.cy + 4))
 			.attr("text-anchor", anchor)
 			.attr("font-family", HX_FONT).attr("font-size", 11).attr("font-weight", 600)
 			.attr("fill", color).attr("stroke", "white").attr("stroke-width", 3)
@@ -319,7 +331,7 @@ function hxDrawEdgeArrow(layer, ctx, pos, color, label) {
 
 // One state point: a circle inside the axes, an edge arrow with its value
 // outside. opts: { color ("black"), hollow (white fill, coloured ring),
-// r (6), className ("hx-state"), texts }.
+// r (6), className ("hx-state"), texts, units (default ctx.units) }.
 // Returns {state, pos, outside, marker, group} or null.
 function hxDrawStatePoint(layer, ctx, state, opts) {
 	opts = opts || {};
@@ -330,7 +342,7 @@ function hxDrawStatePoint(layer, ctx, state, opts) {
 	let g = layer.append("g").attr("class", opts.className || "hx-state");
 	let marker;
 	if (pos.outside) {
-		marker = hxDrawEdgeArrow(g, ctx, pos, color, hxStateLabel(s, opts.texts));
+		marker = hxDrawEdgeArrow(g, ctx, pos, color, hxStateLabel(s, opts.texts, opts.units || ctx.units));
 	} else if (opts.hollow) {
 		marker = g.append("circle").attr("cx", pos.cx).attr("cy", pos.cy).attr("r", opts.r || 6)
 			.attr("fill", "white").attr("fill-opacity", 0.85)
@@ -352,7 +364,7 @@ function hxDrawStatePoint(layer, ctx, state, opts) {
 // Returns { outdoor, room, effect, note, marker } (outdoor null if missing).
 function hxDrawOutdoor(layer, ctx, outdoor, room, opts) {
 	opts = opts || {};
-	let texts = hxTexts(opts.texts);
+	let texts = hxTexts(opts.texts, ctx.units);
 	let color = opts.color || HX_OUTDOOR_COLOR;
 	let o = hxState(outdoor, ctx.mollier, ctx.pressure);
 	let r = hxState(room, ctx.mollier, ctx.pressure);

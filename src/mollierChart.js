@@ -12,6 +12,7 @@
 //   drawHXCoordinates(...)             — coordinateGenerator.js
 //   createComfort(rangeT,rangePhi,rangeX,p,mollier) — drawComfort.js
 //   hxDrawOutdoor / hxDrawStatePoint / hxTexts ...  — drawComfort.js
+//   hxProjection / HX_UNITS            — hxUnits.js
 //
 // Usage:
 //   const chart = new MollierChart("#chart", { height: 700 });
@@ -25,6 +26,8 @@
 //   chart.setOutdoor({t:4, rh:85});         // outside air + ventilation line/note
 //   chart.setTexts({outdoor:"Aussenluft"}); // any user-visible text
 //   chart.setCaptions({temperature:"Temperatur ϑ [°C]"}); // grid captions
+//   chart.setOrientation("psychrometric");  // ASHRAE layout (grid redraw)
+//   chart.setUnits("ip");                   // °F, gr/lb, Btu/lb (grid redraw)
 
 // ---------------------------------------------------------------------------
 // Frequency-contour helpers (pure, grid-space) — bandwidth/feathering tuned to
@@ -124,8 +127,17 @@ const MOLLIER_CHART_DEFAULT_TEXTS = {
   freq_hours: "{n} h/year outside",          // frequency-line tooltip
   freq_days: "{n} days/year outside",
   altitude: "{alt} m a.s.l.",                // info top right; "" hides it
-  pressure: "{hpa} hPa"
+  pressure: "{hpa} hPa"                      // placeholders: {alt} (m), {alt_ft},
+};                                           // {hpa}, {inhg}, {pa}
+
+// Defaults that differ for units 'ip' (merged over the texts above).
+const MOLLIER_CHART_DEFAULT_TEXTS_IP = {
+  altitude: "{alt_ft} ft",
+  pressure: "{inhg} inHg"
 };
+
+// Default title of the humidity axis of MollierChart, per units.
+const MOLLIER_CHART_X_TITLE = { si: "absolute water content x [g/kg]", ip: "humidity ratio W [gr/lb]" };
 
 let mollierChartCounter = 0;
 
@@ -151,13 +163,18 @@ class MollierChart {
     this.pressure = opts.pressure || 101325;
     this.domainX = opts.domainX || [0, 0.02];   // kg/kg
     this.domainY = opts.domainY || [-20, 50];   // degC
+    this.orientation = hxOrientation(opts.orientation);   // 'mollier' | 'psychrometric'
+    this.units = hxIsIP(opts.units) ? "ip" : "si";
+    // The default humidity-axis title follows the units unless one is given.
+    this._defaultXTitle = !(opts.lineOpts && opts.lineOpts.xAxisTitle != null);
     this.lineOpts = Object.assign({
       showTemperature: true, showDensity: true, showRelHumidity: true,
       showEnthalpy: true, showAbsHumidity: true,
-      xAxisTitle: "absolute water content x [g/kg]"
+      xAxisTitle: MOLLIER_CHART_X_TITLE[this.units]
     }, opts.lineOpts || {});
     if (opts.captions) this.lineOpts.captions = Object.assign({}, this.lineOpts.captions || {}, opts.captions);
-    this._texts = Object.assign({}, MOLLIER_CHART_DEFAULT_TEXTS, hxTexts(), opts.texts || {});
+    this._userTexts = Object.assign({}, opts.texts || {});
+    this._resolveTexts();
     this._uid = "hx" + (++mollierChartCounter);
     this.seasonColors = opts.seasonColors || DEFAULT_SEASON_COLORS;
     this.seasonLabels = opts.seasonLabels || DEFAULT_SEASON_LABELS;
@@ -182,6 +199,25 @@ class MollierChart {
 
     this._buildSkeleton();
     this._drawGrid();
+  }
+
+  // Defaults for the units, then the user's texts.
+  _resolveTexts() {
+    let ip = this.units === "ip";
+    this._texts = Object.assign({}, MOLLIER_CHART_DEFAULT_TEXTS, ip ? MOLLIER_CHART_DEFAULT_TEXTS_IP : {},
+      hxTexts(null, this.units), this._userTexts);
+  }
+
+  // Screen mapping (hxProjection) for the current size, domain and
+  // orientation. this.x / this.y are its scales (x: kg/kg -> px along the
+  // humidity axis, y: diagram-y -> px along the temperature axis); use
+  // this.project(x, y) -> [px, py] for screen positions.
+  _setProjection() {
+    this.proj = hxProjection(this.width, this.height, this.domainX, this.domainY, this.orientation);
+    this.x = this.proj.xScale;
+    this.y = this.proj.yScale;
+    this.project = this.proj.project;
+    this.line = this.proj.line;
   }
 
   // --- skeleton + scales --------------------------------------------------
@@ -236,17 +272,16 @@ class MollierChart {
     this.pointLayer = this.top.append("g").attr("class", "hx-points");
     this.tipLayer = this.top.append("g").attr("class", "hx-tip").style("pointer-events", "none");
 
-    this.x = d3.scaleLinear().range([0, this.width]).domain(this.domainX);
-    this.y = d3.scaleLinear().range([this.height, 0]).domain(this.domainY);
-    this.line = d3.line().x((d) => this.x(d.x)).y((d) => this.y(d.y));
+    this._setProjection();
   }
 
   // --- grid (expensive; only on grid-affecting changes) -------------------
   _drawGrid() {
     let old = this.background.select("#hx_mollier_diagram");
     if (!old.empty()) old.remove();
+    let lo = Object.assign({}, this.lineOpts, { orientation: this.orientation, units: this.units });
     drawHXCoordinates(this.background, this.Width, this.Height, this.margin,
-      this.domainX, this.domainY, this.pressure, this.mollier, this.lineOpts);
+      this.domainX, this.domainY, this.pressure, this.mollier, lo);
     this._drawInfo();
   }
 
@@ -255,8 +290,11 @@ class MollierChart {
     if (diag.empty()) return;
     let alt = (1 - Math.pow(Number(this.pressure) / 101325, 1 / 5.25588)) / 2.25577e-5;
     let g = diag.append("g").attr("class", "hx-info").style("font-family", "Tahoma, Geneva, sans-serif");
-    let lines = [hxFormat(this._texts.altitude || "", { alt: alt.toFixed(0) }),
-                 hxFormat(this._texts.pressure || "", { hpa: (this.pressure / 100).toFixed(0) })]
+    let U = HX_UNITS, pa = Number(this.pressure);
+    let v = { alt: alt.toFixed(0), alt_ft: U.mToFt(alt).toFixed(0),
+              hpa: (this.pressure / 100).toFixed(0), inhg: U.paToInhg(pa).toFixed(2), pa: pa.toFixed(0) };
+    let lines = [hxFormat(this._texts.altitude || "", v),
+                 hxFormat(this._texts.pressure || "", v)]
       .filter((t) => t !== "");
     lines.forEach((t, i) => {
       g.append("text").attr("x", this.margin.left + this.width).attr("y", this.margin.top - 8 - 14 * (lines.length - 1 - i))
@@ -268,7 +306,7 @@ class MollierChart {
   setDomain(domainX, domainY) {
     if (domainX) this.domainX = domainX;
     if (domainY) this.domainY = domainY;
-    this.x.domain(this.domainX); this.y.domain(this.domainY);
+    this._setProjection();
     this._drawGrid();
     this._repositionOverlays();
     return this;
@@ -286,7 +324,8 @@ class MollierChart {
   }
   // Any user-visible text (MOLLIER_CHART_DEFAULT_TEXTS + HX_DEFAULT_TEXTS), merged.
   setTexts(texts) {
-    Object.assign(this._texts, texts || {});
+    Object.assign(this._userTexts, texts || {});
+    this._resolveTexts();
     this._drawGrid();
     this._drawPoints();
     return this;
@@ -306,6 +345,26 @@ class MollierChart {
     this._redrawAllOverlays();
     return this;
   }
+  // 'mollier' (default) or 'psychrometric' (ASHRAE: temperature horizontal,
+  // humidity ratio vertical with its scale on the right). Grid redraw.
+  setOrientation(orientation) {
+    this.orientation = hxOrientation(orientation);
+    this._setProjection();
+    this._drawGrid();
+    this._redrawAllOverlays();
+    if (this._clickCatcher) this._clickCatcher.raise();
+    return this;
+  }
+  // 'si' (default) or 'ip' (°F, gr/lb, Btu/lb, lb/ft³, ft, inHg): ticks,
+  // labels, captions, tooltips and texts. The data stay SI. Grid redraw.
+  setUnits(units) {
+    this.units = hxIsIP(units) ? "ip" : "si";
+    if (this._defaultXTitle) this.lineOpts.xAxisTitle = MOLLIER_CHART_X_TITLE[this.units];
+    this._resolveTexts();
+    this._drawGrid();
+    this._drawPoints();
+    return this;
+  }
   setHeight(h) {
     this.Height = Number(h);
     this.resize();
@@ -317,7 +376,7 @@ class MollierChart {
     this.height = this.Height - this.margin.top - this.margin.bottom;
     this.canvas.attr("width", this.Width).attr("height", this.Height);
     hxAddClipPath(this.canvas, this._clipId, this.width, this.height);
-    this.x.range([0, this.width]); this.y.range([this.height, 0]);
+    this._setProjection();
     this._drawGrid();
     this._redrawAllOverlays();
     if (this._clickCatcher) this._clickCatcher.attr("width", this.width).attr("height", this.height).raise();
@@ -345,7 +404,7 @@ class MollierChart {
 
   // Enable click-to-add: clicking the plot calls cb({t, rh, x}) with the
   // temperature [°C], relative humidity [%] and absolute humidity [kg/kg] at the
-  // clicked position. Pass null to disable. A transparent catcher on top makes
+  // clicked position (always SI). Pass null to disable. A transparent catcher on top makes
   // the whole plot area clickable (teaching/interactive use).
   onPlotClick(cb) {
     this._clickCb = cb || null;
@@ -361,7 +420,7 @@ class MollierChart {
     this._clickCatcher.attr("width", this.width).attr("height", this.height).raise()
       .on("click", function (event) {
         let m = d3.pointer(event, this);
-        let xv = self.x.invert(m[0]), yv = self.y.invert(m[1]);
+        let q = self.proj.invert(m[0], m[1]), xv = q[0], yv = q[1];
         let T = self.mollier.temperature(xv, yv);
         let rh = self.mollier.rel_humidity(xv, yv, self.pressure) * 100;
         rh = Math.max(0, Math.min(100, rh));
@@ -380,7 +439,7 @@ class MollierChart {
   }
 
   _drawMeanLines() {
-    let self = this, x = this.x, y = this.y;
+    let self = this, P = this.project;
     this.meanLayer.selectAll("*").remove();
     if (this._data.length === 0 || (!this._mean.h && !this._mean.t)) return;
 
@@ -406,14 +465,14 @@ class MollierChart {
       }
       return out;
     }
-    let lineGen = d3.line().x((d) => x(d.x)).y((d) => y(d.y)).curve(d3.curveCatmullRom);
+    let lineGen = d3.line().x((d) => P(d.x, d.y)[0]).y((d) => P(d.x, d.y)[1]).curve(d3.curveCatmullRom);
     function drawCurve(pts, color, mainChar, dyLabel) {
       if (pts.length < 2) return;
       self.meanLayer.append("path").datum(pts).attr("d", lineGen)
         .attr("fill", "none").attr("stroke", color).attr("stroke-width", 2.5);
-      let last = pts[pts.length - 1];
+      let last = pts[pts.length - 1], lp = P(last.x, last.y);
       let txt = self.meanLayer.append("text")
-        .attr("x", x(last.x) + 7).attr("y", y(last.y) + dyLabel)
+        .attr("x", lp[0] + 7).attr("y", lp[1] + dyLabel)
         .attr("font-family", "helvetica").attr("font-size", 15).attr("font-style", "italic")
         .attr("fill", color).attr("stroke", "white").attr("stroke-width", 3).attr("paint-order", "stroke");
       txt.append("tspan").text(mainChar);
@@ -443,7 +502,7 @@ class MollierChart {
   }
 
   _drawScatter() {
-    let self = this, x = this.x, y = this.y;
+    let self = this, P = this.project;
     this.scatterLayer.style("display", this._showPoints ? null : "none");
     let sel = this.scatterLayer.selectAll("circle").data(this._data);
     sel.exit().remove();
@@ -452,13 +511,13 @@ class MollierChart {
       .on("mouseover", function (event, d) { d3.select(this).attr("r", self.radius * 1.6); self._showPointTip(d); })
       .on("mouseout", function () { d3.select(this).attr("r", self.radius); self._hideTip(); })
       .merge(sel)
-      .attr("cx", (d) => x(d.x)).attr("cy", (d) => y(d.y))
+      .attr("cx", (d) => P(d.x, d.y)[0]).attr("cy", (d) => P(d.x, d.y)[1])
       .attr("fill", (d) => self.seasonColors[d.season] || "#999");
   }
 
   _positionScatter() {
-    let x = this.x, y = this.y;
-    this.scatterLayer.selectAll("circle").attr("cx", (d) => x(d.x)).attr("cy", (d) => y(d.y));
+    let P = this.project;
+    this.scatterLayer.selectAll("circle").attr("cx", (d) => P(d.x, d.y)[0]).attr("cy", (d) => P(d.x, d.y)[1]);
   }
 
   // --- comfort zone + warning bands --------------------------------------
@@ -519,7 +578,8 @@ class MollierChart {
   }
 
   _ctx() {
-    return { x: this.x, y: this.y, width: this.width, height: this.height, mollier: this.mollier, pressure: this.pressure };
+    return { x: this.x, y: this.y, width: this.width, height: this.height, mollier: this.mollier, pressure: this.pressure,
+             project: this.project, units: this.units };
   }
 
   _drawPoints() {
@@ -561,32 +621,48 @@ class MollierChart {
 
   // Tooltip rows x / T / φ / Td for a normalised state.
   _stateLines(s, dec) {
-    let T = this._texts, m = this.mollier;
+    let T = this._texts, m = this.mollier, u = this._fmt();
     let td = m.temperature_p_sat(s.phi * m.p_sat(s.t));
     return [
-      T.tip_x + ": " + (s.x * 1000).toFixed(2) + " g/kg",
-      T.tip_t + ": " + s.t.toFixed(dec) + " °C",
+      T.tip_x + ": " + u.x(s.x, 2),
+      T.tip_t + ": " + u.t(s.t, dec),
       T.tip_phi + ": " + (s.phi * 100).toFixed(dec === 1 ? 0 : 1) + " %",
-      T.tip_td + ": " + (td == null ? "–" : td.toFixed(1)) + " °C"
+      T.tip_td + ": " + (td == null ? "–" : u.t(td, 1))
     ];
+  }
+
+  // Value formatters in the display units: t(°C), x(kg/kg), h(kJ/kg) with
+  // `dec` decimals (IP: gr/lb get one decimal less).
+  _fmt() {
+    let U = HX_UNITS;
+    if (this.units === "ip") return {
+      t: (v, dec) => U.cToF(v).toFixed(dec) + " °F",
+      x: (v, dec) => U.kgkgToGrlb(v).toFixed(Math.max(0, dec - 1)) + " gr/lb",
+      h: (v, dec) => U.kjkgToBtulb(v).toFixed(dec) + " Btu/lb"
+    };
+    return {
+      t: (v, dec) => v.toFixed(dec) + " °C",
+      x: (v, dec) => (v * 1000).toFixed(dec) + " g/kg",
+      h: (v, dec) => v.toFixed(dec) + " kJ/kg"
+    };
   }
 
   // --- process chain ------------------------------------------------------
   setProcessChain(states) { this._chain = states || []; this._drawChain(); return this; }
 
   _drawChain() {
-    let self = this, x = this.x, y = this.y;
+    let self = this, P = this.project;
     this.chainLayer.selectAll("*").remove();
     let sp = this._chain;
     if (!sp || sp.length === 0) return;
     for (let i = 1; i < sp.length; i++) {
       this.chainLayer.append("line")
-        .attr("x1", x(sp[i - 1].x)).attr("y1", y(sp[i - 1].y))
-        .attr("x2", x(sp[i].x)).attr("y2", y(sp[i].y))
+        .attr("x1", P(sp[i - 1].x, sp[i - 1].y)[0]).attr("y1", P(sp[i - 1].x, sp[i - 1].y)[1])
+        .attr("x2", P(sp[i].x, sp[i].y)[0]).attr("y2", P(sp[i].x, sp[i].y)[1])
         .attr("stroke", "#444").attr("stroke-width", 2).attr("marker-end", "url(#" + this._arrowId + ")");
     }
     let nodes = this.chainLayer.selectAll("g.state").data(sp).enter().append("g").attr("class", "state")
-      .attr("transform", (d) => "translate(" + x(d.x) + "," + y(d.y) + ")").style("cursor", "pointer")
+      .attr("transform", (d) => "translate(" + P(d.x, d.y)[0] + "," + P(d.x, d.y)[1] + ")").style("cursor", "pointer")
       .on("mouseover", function (event, d) { self._showChainTip(d); })
       .on("mouseout", function () { self._hideTip(); });
     nodes.append("circle").attr("r", 11).attr("fill", "#222").attr("stroke", "white").attr("stroke-width", 2);
@@ -653,15 +729,21 @@ class MollierChart {
     return levels;
   }
 
+  // Clip path = the unsaturated region (smaller x than the saturation curve):
+  // upper left of the curve in 'mollier', lower right in 'psychrometric'.
   _updateSaturationClip() {
     let sat = [], t0 = this.domainY[0] - 3, t1 = this.domainY[1] + 3, ns = 120;
     for (let i = 0; i <= ns; i++) {
       let t = t0 + (t1 - t0) * i / ns;
       let s = this.mollier.get_x_y(t, 1, this.pressure);
-      sat.push([this.x(s.x), this.y(s.y)]);
+      sat.push(this.project(s.x, s.y));
     }
     let pad = Math.max(this.width, this.height) + 200;
-    let pts = [[-pad, this.height + pad]].concat(sat).concat([[this.width + pad, -pad], [-pad, -pad]]);
+    // Far corners: (cold, dry), the saturation curve cold -> warm, (warm,
+    // humid), then round the dry side via (warm, dry): top left ('mollier')
+    // or bottom right ('psychrometric') of the axes.
+    let dryWarm = this.orientation === "psychrometric" ? [this.width + pad, this.height + pad] : [-pad, -pad];
+    let pts = [[-pad, this.height + pad]].concat(sat).concat([[this.width + pad, -pad], dryWarm]);
     let cp = this.canvas.select("#" + this._satClipId);
     if (cp.empty()) cp = this.canvas.append("clipPath").attr("id", this._satClipId);
     cp.selectAll("polygon").remove();
@@ -669,7 +751,7 @@ class MollierChart {
   }
 
   _drawFreqLines() {
-    let self = this, x = this.x, y = this.y;
+    let self = this;
     this.freqLines.selectAll("*").remove();
     this.freqLabels.selectAll("*").remove();
     this.freqHover.selectAll("*").remove();
@@ -682,7 +764,7 @@ class MollierChart {
     function gridToScreen(gx, gy) {
       let xv = FREQ_XMIN + gx * FREQ_DX, Tv = FREQ_TMIN + gy * FREQ_DT;
       let yv = self.mollier.get_x_y_tx(Tv, xv, self.pressure).y;
-      return [x(xv), y(yv)];
+      return self.project(xv, yv);
     }
     let smoothLine = d3.line().curve(d3.curveBasisClosed);
     function contourPath(mp) {
@@ -755,20 +837,29 @@ class MollierChart {
   _showPointTip(d) {
     let X = d.x, Y = d.y, temp = this.mollier.temperature(X, Y), phi = this.mollier.rel_humidity(X, Y, this.pressure);
     let hh = this.mollier.enthalpy(X, Y), tdp = this.mollier.temperature_p_sat(phi * this.mollier.p_sat(temp));
-    let T = this._texts;
-    this._showTip(this.x(X), this.y(Y), [
+    let T = this._texts, u = this._fmt(), pos = this.project(X, Y);
+    this._showTip(pos[0], pos[1], [
       d.time ? this._timeFormat(d.time) : "",
-      T.tip_x + ":  " + (X * 1000).toFixed(2) + " g/kg",
-      T.tip_t + ":  " + temp.toFixed(2) + " °C",
+      T.tip_x + ":  " + u.x(X, 2),
+      T.tip_t + ":  " + u.t(temp, 2),
       T.tip_phi + ":  " + (phi * 100).toFixed(1) + " %",
-      T.tip_h + ":  " + hh.toFixed(2) + " kJ/kg",
-      T.tip_td + ": " + tdp.toFixed(2) + " °C"
+      T.tip_h + ":  " + u.h(hh, 2),
+      T.tip_td + ": " + u.t(tdp, 2)
     ].filter((s) => s !== ""));
   }
+  // Process-chain state: d.t [°C], d.phi [%], d.xg [g/kg], d.h [kJ/kg] as
+  // given (SI); with units 'ip' numeric values are shown in °F, gr/lb, Btu/lb.
   _showChainTip(d) {
-    this._showTip(this.x(d.x), this.y(d.y),
-      [d.label, this._texts.tip_t + ": " + d.t + " °C", this._texts.tip_phi + ": " + d.phi + " %",
-        this._texts.tip_x + ": " + d.xg + " g/kg", this._texts.tip_h + ": " + d.h + " kJ/kg"], "#222");
+    let T = this._texts, pos = this.project(d.x, d.y), U = HX_UNITS;
+    let num = (v) => v != null && v !== "" && isFinite(Number(v));
+    let lines = this.units === "ip"
+      ? [d.label, T.tip_t + ": " + (num(d.t) ? U.cToF(Number(d.t)).toFixed(1) : d.t) + " °F",
+         T.tip_phi + ": " + d.phi + " %",
+         T.tip_x + ": " + (num(d.xg) ? U.kgkgToGrlb(Number(d.xg) / 1000).toFixed(0) : d.xg) + " gr/lb",
+         T.tip_h + ": " + (num(d.h) ? U.kjkgToBtulb(Number(d.h)).toFixed(1) : d.h) + " Btu/lb"]
+      : [d.label, T.tip_t + ": " + d.t + " °C", T.tip_phi + ": " + d.phi + " %",
+         T.tip_x + ": " + d.xg + " g/kg", T.tip_h + ": " + d.h + " kJ/kg"];
+    this._showTip(pos[0], pos[1], lines, "#222");
   }
   _showFreqTip(label, useDays, event) {
     let m = d3.pointer(event, this.plot.node());
