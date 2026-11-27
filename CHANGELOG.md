@@ -3,7 +3,7 @@
 All notable changes to d3-mollierhx. Versions follow [SemVer](https://semver.org/); earlier
 versions are listed on the [releases page](https://github.com/hslu-ige-laes/d3-mollierhx/releases).
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-11-27)
 
 ### Added
 
